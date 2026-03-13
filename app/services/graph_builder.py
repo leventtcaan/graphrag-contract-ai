@@ -18,7 +18,7 @@ import unicodedata
 import uuid
 from pathlib import Path
 
-import pymupdf  # PyMuPDF — pypdf'e göre çok daha güvenilir UTF-8/Türkçe desteği
+import fitz  # PyMuPDF'in fitz arayüzü — Türkçe UTF-8 encoding için güvenilir
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 from langchain_experimental.graph_transformers import LLMGraphTransformer
@@ -98,56 +98,36 @@ _text_splitter = RecursiveCharacterTextSplitter(
 )
 
 
-def _normalize_text(text: str) -> str:
+def load_pdf_safe(file_path: str) -> list[Document]:
     """
-    PDF'den gelen metni temizliyor ve UTF-8 bütünlüğünü garanti altına alıyorum.
+    PDF'den saf LangChain Document listesi döndürüyor — tam eager load.
 
-    PyMuPDF zaten UTF-8 döndürüyor ama bazı embedded font'lu PDF'lerde
-    Unicode birleştirme karakterleri (combining marks) ayrı kod noktaları
-    olarak gelebiliyor. NFC normalizasyonu bunları birleştirir:
-    örneğin "I\u0307" (I + combining dot) → "İ"
+    Kural: Bu fonksiyondan dönen listede fitz/PyMuPDF'e ait HİÇBİR obje
+    (fitz.Document, fitz.Page vb.) bulunmaz. Her Document.page_content
+    değeri saf Python str'dir. PDF with bloğu kapanmadan önce tüm
+    metinler RAM'e kopyalanır; sonraki hiçbir adım (chunk, LLM) PDF'e
+    dokunmaz.
     """
-    # NFC: Türkçe İ, Ğ, Ş, Ü, Ö, Ç karakterlerini tek kod noktasına indirger
-    return unicodedata.normalize("NFC", text)
+    docs: list[Document] = []
 
-
-def _load_documents_from_path(file_path: Path) -> list[Document]:
-    """
-    PDF'den LangChain Document listesi yüklüyorum — tam eager load.
-
-    Tasarım ilkesi: Bu fonksiyondan dönen listede PyMuPDF'e ait hiçbir
-    obje (Document, Page, Pixmap vb.) bulunmaz. Her Document.page_content
-    değeri saf Python str'dir; PDF kapatıldıktan sonra güvenle okunabilir.
-
-    Neden with + del + str():
-      - with: Document.__exit__ pdf.close() garantiler, finally unutulamaz
-      - del page: Page objesi her iterasyon sonunda Python heap'ten düşer
-      - str(raw): get_text() zaten str döndürür ama açık kopya isteği
-        PyMuPDF'in gelecekteki buffer optimizasyonlarına karşı sigorta
-    """
-    documents: list[Document] = []
-    total_pages = 0
-
-    with pymupdf.open(str(file_path)) as pdf:
-        total_pages = len(pdf)
-        for page_num in range(total_pages):
-            page = pdf[page_num]
-            raw_text = str(page.get_text("text"))   # kesin str kopyası
-            del page                                 # PyMuPDF Page referansını bırak
-            clean_text = _normalize_text(raw_text)
-            if clean_text.strip():
-                documents.append(Document(
-                    page_content=clean_text,
-                    metadata={"page": page_num, "source": str(file_path)},
-                ))
-    # with bloğu kapandı → pdf.close() çağrıldı.
-    # documents içinde artık yalnızca plain Python str ve dict var.
+    with fitz.open(file_path) as doc:
+        for i, page in enumerate(doc):
+            text_content = str(page.get_text("text"))
+            # Türkçe combining character'ları birleştir (İ, Ğ, Ş, Ö, Ü, Ç)
+            text_content = unicodedata.normalize("NFC", text_content)
+            # PyMuPDF referansı olmayan, saf Python objesi yaratıyoruz:
+            docs.append(Document(
+                page_content=text_content,
+                metadata={"source": file_path, "page": i + 1},
+            ))
+    # with bloğu kapandı → fitz belgesi kapatıldı.
+    # docs içinde artık yalnızca plain Python str ve dict var.
 
     logger.info(
-        "PDF yuklendi (PyMuPDF): %s — %d sayfa, %d dolu sayfa",
-        file_path.name, total_pages, len(documents),
+        "PDF yuklendi (fitz): %s — %d sayfa",
+        Path(file_path).name, len(docs),
     )
-    return documents
+    return docs
 
 
 def _split_documents(documents: list[Document]) -> list[Document]:
@@ -358,7 +338,8 @@ async def build_contract_graph(
     )
 
     # ── Adım 1: PDF yükle ve chunk'la ─────────────────────────────────────────
-    documents = await asyncio.to_thread(_load_documents_from_path, path)
+    # load_pdf_safe: fitz ile tam eager load; dönen liste PyMuPDF'ten bağımsız.
+    documents = await asyncio.to_thread(load_pdf_safe, file_path)
     if not documents:
         raise ValueError(f"PDF'den içerik çıkarılamadı: {file_path}")
 
