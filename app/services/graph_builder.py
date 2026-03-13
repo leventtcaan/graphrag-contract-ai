@@ -126,9 +126,12 @@ def _load_documents_from_path(file_path: Path) -> list[Document]:
     documents = []
     pdf = pymupdf.open(str(file_path))
     try:
-        for page_num in range(len(pdf)):
+        total_pages = len(pdf)  # Belge kapanmadan önce sayfa sayısını oku
+        for page_num in range(total_pages):
             page = pdf[page_num]
             # "text" modu: saf düz metin, UTF-8 garantili
+            # get_text() döndürdüğü string tamamen belleğe alınıyor —
+            # pdf.close() çağrısından önce tüm metin kopyalanmış olur.
             raw_text = page.get_text("text")
             clean_text = _normalize_text(raw_text)
             if clean_text.strip():
@@ -137,11 +140,11 @@ def _load_documents_from_path(file_path: Path) -> list[Document]:
                     metadata={"page": page_num, "source": str(file_path)},
                 ))
     finally:
-        pdf.close()
+        pdf.close()  # Tüm metin stringleri bellekte; belgeyi güvenle kapat
 
     logger.info(
         "PDF yuklendi (PyMuPDF): %s — %d sayfa, %d dolu sayfa",
-        file_path.name, len(pdf), len(documents),
+        file_path.name, total_pages, len(documents),
     )
     return documents
 
