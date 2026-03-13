@@ -47,23 +47,34 @@ Süzme, eşleştirme veya yorumlama YAPMA — bu işi dönen veriyi okuyacak ola
 ÖNEMLİ: CYPHER SORGUSU İÇİNDE `contract_id` HARİCİNDE HİÇBİR ÖZELLİĞE (PROPERTY) GÖRE
 FİLTRELEME YAPMAK KESİNLİKLE YASAKTIR!
 
-`duration`, `name`, `type`, `id`, `provider`, `basis` VEYA BAŞKA HERHANGİ BİR PROPERTY'Yİ
-MATCH VEYA WHERE KOŞULUNA ASLA EKLEME.
+`duration`, `name`, `type`, `id`, `provider`, `basis`, `number`, `address` VEYA BAŞKA
+HERHANGİ BİR PROPERTY'Yİ MATCH VEYA WHERE KOŞULUNA ASLA EKLEME.
 
 YANLIŞ — BU FORMATLARI KULLANMA:
   MATCH (n:Cookie {{contract_id: '...', duration: 'kalıcı'}})    ← duration filtresi yasak
   MATCH (n:Cookie {{contract_id: '...', type: 'analitik'}})      ← type filtresi yasak
   WHERE n.name = 'bir şey'                                        ← name filtresi yasak
-  WHERE n.type CONTAINS 'kalıcı'                                  ← type filtresi yasak
+  WHERE n.number = '5(2)(f)'                                      ← number filtresi yasak
+  WHERE n.address CONTAINS 'İstanbul'                             ← address filtresi yasak
 
 DOĞRU — YALNIZCA BU FORMAT:
   MATCH (n:EtiketAdi) WHERE n.contract_id = '{contract_id}' RETURN n
 
 === MEVCUT ŞEMA ({schema}) ===
 
-DÜĞÜM ETİKETLERİ (her birinde contract_id property'si var):
-  Cookie | Purpose | LegalBasis | Organization | Regulation |
-  DataCategory | Obligation | Penalty | Person | ContractClause
+DÜĞÜM ETİKETLERİ ve ÖNEMLİ PROPERTY'LERİ (her birinde contract_id property'si var):
+
+  Cookie        → name, type, duration, provider
+  Purpose       → name, description, basis
+  LegalBasis    → name, description, article, number
+  Organization  → name, type, address, location   ← adres bilgisi burada!
+  Person        → name, type, address, location   ← kişi adresi burada!
+  Regulation    → name, description, article
+  DataCategory  → name, type, description
+  Obligation    → name, description, type, value
+  Penalty       → name, description, type, amount
+  ContractClause → name, description, number, clause_number, article
+                   ← madde numaraları burada! "5(2)(f)", "8.1" gibi formatlar
 
 İLİŞKİLER (gerekirse kullan):
   (Cookie)-[:PROCESSED_FOR]->(Purpose)
@@ -94,15 +105,38 @@ Tüm entity'ler (genel bakış soruları için):
 
 === KARAR AĞACI ===
 
-Kullanıcı "çerez" veya "cookie" soruyorsa   → MATCH (n:Cookie) WHERE n.contract_id = '{contract_id}' RETURN n
-Kullanıcı "amaç" veya "purpose" soruyorsa   → MATCH (n:Purpose) WHERE n.contract_id = '{contract_id}' RETURN n
-Kullanıcı "yasal dayanak" soruyorsa         → MATCH (n:LegalBasis) WHERE n.contract_id = '{contract_id}' RETURN n
-Kullanıcı "kuruluş/şirket" soruyorsa        → MATCH (n:Organization) WHERE n.contract_id = '{contract_id}' RETURN n
-Kullanıcı "yönetmelik/kanun" soruyorsa      → MATCH (n:Regulation) WHERE n.contract_id = '{contract_id}' RETURN n
-Kullanıcı "veri kategorisi" soruyorsa       → MATCH (n:DataCategory) WHERE n.contract_id = '{contract_id}' RETURN n
-Kullanıcı "yükümlülük" soruyorsa            → MATCH (n:Obligation) WHERE n.contract_id = '{contract_id}' RETURN n
-Kullanıcı "madde/clause" soruyorsa          → MATCH (n:ContractClause) WHERE n.contract_id = '{contract_id}' RETURN n
-Kullanıcı genel bir soru soruyorsa          → MATCH (n) WHERE n.contract_id = '{contract_id}' AND NOT n:Contract RETURN n
+Kullanıcı "çerez" veya "cookie" soruyorsa               → MATCH (n:Cookie) WHERE n.contract_id = '{contract_id}' RETURN n
+Kullanıcı "amaç" veya "purpose" soruyorsa               → MATCH (n:Purpose) WHERE n.contract_id = '{contract_id}' RETURN n
+Kullanıcı "yasal dayanak" soruyorsa                     → MATCH (n:LegalBasis) WHERE n.contract_id = '{contract_id}' RETURN n
+Kullanıcı "kuruluş/şirket/taraf" soruyorsa              → MATCH (n:Organization) WHERE n.contract_id = '{contract_id}' RETURN n
+Kullanıcı "yönetmelik/kanun" soruyorsa                  → MATCH (n:Regulation) WHERE n.contract_id = '{contract_id}' RETURN n
+Kullanıcı "veri kategorisi" soruyorsa                   → MATCH (n:DataCategory) WHERE n.contract_id = '{contract_id}' RETURN n
+Kullanıcı "yükümlülük" soruyorsa                        → MATCH (n:Obligation) WHERE n.contract_id = '{contract_id}' RETURN n
+Kullanıcı "ceza/yaptırım/penalty" soruyorsa             → MATCH (n:Penalty) WHERE n.contract_id = '{contract_id}' RETURN n
+
+Kullanıcı "adres/address/konum/yer/merkez/nerede" soruyorsa →
+  MATCH (a:Organization) WHERE a.contract_id = '{contract_id}'
+  WITH collect(a) AS orgs
+  MATCH (b:Person) WHERE b.contract_id = '{contract_id}'
+  RETURN orgs, collect(b) AS persons
+
+Kullanıcı "madde" veya "clause" veya "5(2)(f)" gibi parantezli/noktalı madde numarası soruyorsa →
+  MATCH (n:ContractClause) WHERE n.contract_id = '{contract_id}' RETURN n
+
+Kullanıcı hem madde hem de yasal dayanak soruyorsa →
+  MATCH (a:ContractClause) WHERE a.contract_id = '{contract_id}'
+  WITH collect(a) AS clauses
+  MATCH (b:LegalBasis) WHERE b.contract_id = '{contract_id}'
+  RETURN clauses, collect(b) AS bases
+
+Kullanıcı genel bir soru soruyorsa →
+  MATCH (n) WHERE n.contract_id = '{contract_id}' AND NOT n:Contract RETURN n
+
+=== ÖNEMLİ NOT: MADDE NUMARALARI ===
+"5(2)(f)", "8(1)(b)", "6.2.a" gibi parantezli veya noktalı madde numaraları sorulduğunda
+ASLA bu numarayı WHERE koşuluna ekleme. TÜM ContractClause düğümlerini getir;
+hangi maddenin istenen madde olduğunu QA modeli `number`, `clause_number` veya `name`
+property'lerine bakarak kendisi belirleyecek.
 
 Kullanıcı Sorusu: {question}
 
@@ -118,7 +152,7 @@ verisine dayanarak kullanıcının sorusunu yanıtla.
 Grafik Verisi (Neo4j sorgu sonucu):
 {context}
 
-KURALLLAR:
+KURALLAR:
 1. Sadece grafik verisinde bulunan bilgileri kullan; ek bilgi, tahmin veya \
 çıkarım yapma.
 2. Grafik verisi soruyu yanıtlamak için yetersizse, \
@@ -128,6 +162,17 @@ yönlendirmeye çalışırsa, nazikçe reddet ve sadece sözleşme analizi \
 yapabileceğini belirt.
 4. Cevabı kısa, net ve hukuki bir dille ver; madde madde listeler kullan.
 5. Türkçe yanıt ver.
+
+ÖZEL DURUMLAR:
+- Madde numaraları "5(2)(f)", "8(1)(b)", "6.2.a" gibi parantezli veya noktalı \
+formatlarda olabilir. Grafik verisinde `number`, `clause_number`, `article` veya \
+`name` property'lerine bakarak istenen maddeyi bul; tam eşleşme yoksa en yakın \
+madde numarasını belirt.
+- Adres bilgileri `address` veya `location` property'lerinde saklanıyor. \
+Organization düğümlerinde şirket/kurum adresi, Person düğümlerinde kişi adresi bulunur.
+- Bir madde numarası sorulduğunda ve grafik verisi birden fazla madde içeriyorsa, \
+istenen maddeyi `number` veya `name` alanına göre eşleştir ve sadece o maddenin \
+içeriğini yanıtla.
 
 Kullanıcı Sorusu: {question}
 

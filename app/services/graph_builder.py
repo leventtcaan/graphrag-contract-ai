@@ -104,7 +104,15 @@ def _extract_graph_documents(
         strict_mode=True,
         # node_properties: hangi özelliklerin çıkarılacağını açıkça belirtiyorum.
         # True yerine liste kullanmak LLM'e hangi alanları araması gerektiğini gösteriyor.
-        node_properties=["name", "type", "duration", "provider", "description", "basis"],
+        node_properties=[
+            "name", "type", "duration", "provider", "description", "basis",
+            # Adres bilgileri: Organization ve Person düğümleri için
+            "address", "location",
+            # Madde numaraları: "5(2)(f)", "8.1.b" gibi parantezli/noktalı formatlar
+            "number", "clause_number", "article",
+            # Sayısal değerler: ceza miktarı, süre vb.
+            "value", "amount",
+        ],
     )
 
     logger.info(
