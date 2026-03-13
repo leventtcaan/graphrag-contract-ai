@@ -164,51 +164,54 @@ def _save_to_neo4j(
         params={"contract_id": str(contract_id), "node_id": contract_node_id},
     )
 
+    # ── Her entity düğümüne contract_id property ekle ────────────────────────
+    # NEDEN: add_graph_documents ID'leri normalize edebilir (büyük/küçük harf,
+    # boşluk kırpma vb.), bu yüzden sonradan "node.id ile MATCH" güvenilir değil.
+    # Property tabanlı eşleşme her koşulda çalışır ve multi-tenant izolasyonu sağlar.
+    # Bu döngü add_graph_documents ÇAĞRILMADAN önce çalışmalı.
+    contract_id_str = str(contract_id)
+    for gd in graph_documents:
+        for node in gd.nodes:
+            node.properties["contract_id"] = contract_id_str
+
     # ── Chunk'lardan çıkarılan grafik belgelerini Neo4j'e ekle ────────────────
     # add_graph_documents her GraphDocument'ı Neo4j node/edge'e dönüştürür.
     # baseEntityLabel=True: tüm düğümlere "__Entity__" etiketi de ekler — şema sorgularında faydalı.
+    # include_source=False: kaynak chunk düğümlerini ekleme — şemayı sade tutmak için.
     graph.add_graph_documents(
         graph_documents,
         baseEntityLabel=True,
-        include_source=True,  # kaynak chunk'u da düğüm olarak ekliyor (opsiyonel iz)
+        include_source=False,
     )
 
     # ── ContractClause düğümlerini Contract'a bağla ──────────────────────────
     graph.query(
         f"""
         MATCH (c:{NODE_CONTRACT} {{contract_db_id: $contract_id}})
-        MATCH (clause:ContractClause)
+        MATCH (clause:ContractClause {{contract_id: $contract_id}})
         WHERE NOT (c)-[:{REL_HAS_CLAUSE}]->(clause)
         MERGE (c)-[:{REL_HAS_CLAUSE}]->(clause)
         """,
-        params={"contract_id": str(contract_id)},
+        params={"contract_id": contract_id_str},
     )
 
-    # ── Bu batch'ten çıkarılan entity ID'lerini topla ─────────────────────────
-    # NEDEN: MATCH (e:__Entity__) tüm contract'ların entity'lerini karıştırır.
-    # graph_documents içindeki node.id'leri kullanarak sadece bu sözleşmeye ait
-    # entity'leri Contract'a bağlıyorum — tenant izolasyonu için kritik.
-    extracted_entity_ids = list({
-        node.id
-        for gd in graph_documents
-        for node in gd.nodes
-        if node.type != "Contract"
-    })
-
-    linked_count = 0
-    if extracted_entity_ids:
-        link_result = graph.query(
-            f"""
-            MATCH (c:{NODE_CONTRACT} {{contract_db_id: $contract_id}})
-            UNWIND $entity_ids AS eid
-            MATCH (e:__Entity__) WHERE e.id = eid AND NOT e:Contract
-              AND NOT (c)-[:{REL_HAS_ENTITY}]->(e)
-            MERGE (c)-[:{REL_HAS_ENTITY}]->(e)
-            RETURN count(e) AS linked
-            """,
-            params={"contract_id": str(contract_id), "entity_ids": extracted_entity_ids},
-        )
-        linked_count = link_result[0]["linked"] if link_result else 0
+    # ── Tüm entity'leri Contract'a bağla — property tabanlı MATCH ─────────────
+    # ÖNCEKİ YÖNTEMİN SORUNU: MATCH (e:__Entity__) WHERE e.id = eid
+    #   → add_graph_documents ID'yi normalize edebiliyor (trim, toLower vb.)
+    #   → Eşleşme başarısız olunca HAS_ENTITY oluşmuyor → chat boş dönüyor.
+    # YENİ YÖNTEM: az önce eklediğimiz contract_id property üzerinden MATCH.
+    #   → ID uyumsuzluğu riski yok; property Neo4j'e olduğu gibi yazılıyor.
+    link_result = graph.query(
+        f"""
+        MATCH (c:{NODE_CONTRACT} {{contract_db_id: $contract_id}})
+        MATCH (e:__Entity__ {{contract_id: $contract_id}})
+        WHERE NOT e:Contract AND NOT (c)-[:{REL_HAS_ENTITY}]->(e)
+        MERGE (c)-[:{REL_HAS_ENTITY}]->(e)
+        RETURN count(e) AS linked
+        """,
+        params={"contract_id": contract_id_str},
+    )
+    linked_count = link_result[0]["linked"] if link_result else 0
     logger.info(
         "Entity linking tamamlandi: %d entity Contract'a baglandi. contract_id=%s",
         linked_count, contract_id,

@@ -38,77 +38,75 @@ logger = logging.getLogger(__name__)
 # ─── Cypher Üretim Promptu ────────────────────────────────────────────────────
 # {contract_id} partial_variable — zincir başlamadan kilitlenir (tenant izolasyonu).
 # {schema} ve {question} GraphCypherQAChain tarafından çalışma zamanında doldurulur.
-_CYPHER_GENERATION_TEMPLATE = """Sen bir Neo4j Cypher uzmanısın. \
-Aşağıdaki grafik şemasını ve kuralları kullanarak soruyu yanıtlayan tek bir Cypher sorgusu yaz.
+_CYPHER_GENERATION_TEMPLATE = """Sen bir Neo4j veritabanı sorgulama aracısın.
+Görevin çok basit: ilgili etikete (Label) sahip TÜM düğümleri veritabanından çekmek.
+Süzme, eşleştirme veya yorumlama YAPMA — bu işi dönen veriyi okuyacak olan dil modeli yapacak.
 
---- GERÇEK GRAFİK ŞEMASI ({schema}) ---
+=== KESİN KURAL — İHLAL EDİLEMEZ ===
 
-DÜĞÜM TİPLERİ ve ÖNEMLİ NOT:
-- `id` özelliği HER ZAMAN dolu — asıl tanımlayıcı bu.
-- `name` bazen dolu, bazen NULL olabilir. NULL ise `coalesce(e.name, e.id)` kullan.
-- Contract          : contract_db_id (UUID), node_id
-- ContractClause    : id, name (madde metni)
-- Cookie            : id (çerez adı veya teknik tanımlayıcı), name, type (tur), duration (süre), provider
-- Purpose           : id, name (amaç açıklaması)
-- LegalBasis        : id, name (hukuki dayanak metni, kanun maddesi)
-- Organization      : id, name (şirket/kuruluş adı)
-- Regulation        : id, name (KVKK, GDPR vb.)
-- DataCategory      : id, name (işlenen veri kategorisi)
-- Obligation        : id, name
-- Penalty           : id, name
-- Person            : id, name
+ÖNEMLİ: CYPHER SORGUSU İÇİNDE `contract_id` HARİCİNDE HİÇBİR ÖZELLİĞE (PROPERTY) GÖRE
+FİLTRELEME YAPMAK KESİNLİKLE YASAKTIR!
 
-İLİŞKİ TİPLERİ:
-- (Contract)-[:HAS_ENTITY]->(herhangi bir düğüm)   ← ANA TRAVERSAL YOLU
-- (Contract)-[:HAS_CLAUSE]->(ContractClause)
-- (ContractClause)-[:REFERENCES]->(Regulation)
-- (ContractClause)-[:HAS_OBLIGATION]->(Obligation)
-- (Cookie)-[:PROCESSED_FOR]->(Purpose)
-- (Purpose)-[:BASED_ON]->(LegalBasis)
-- (Organization)-[:USES]->(Cookie)
-- (Organization)-[:PROCESSES]->(DataCategory)
+`duration`, `name`, `type`, `id`, `provider`, `basis` VEYA BAŞKA HERHANGİ BİR PROPERTY'Yİ
+MATCH VEYA WHERE KOŞULUNA ASLA EKLEME.
 
-ZORUNLU BAŞLANGIÇ — HER SORGUDA:
-  MATCH (c:Contract {{contract_db_id: '{contract_id}'}})
+YANLIŞ — BU FORMATLARI KULLANMA:
+  MATCH (n:Cookie {{contract_id: '...', duration: 'kalıcı'}})    ← duration filtresi yasak
+  MATCH (n:Cookie {{contract_id: '...', type: 'analitik'}})      ← type filtresi yasak
+  WHERE n.name = 'bir şey'                                        ← name filtresi yasak
+  WHERE n.type CONTAINS 'kalıcı'                                  ← type filtresi yasak
 
-CRİTİK SÖZDİZİMİ KURALLARI:
-1. String değerleri MUTLAKA tek tırnak içinde yaz: WHERE e.name = 'değer'
-   YANLIŞ: WHERE e.name = 6698 sayılı Kanun     (tırnak yok → SyntaxError!)
-   DOĞRU:  WHERE toLower(e.name) CONTAINS '6698'
-2. Metin içeriği aramak için CONTAINS veya toLower() kullan:
-   WHERE toLower(e.name) CONTAINS '6698'
-   WHERE e.type CONTAINS 'kalıcı'
-3. Mümkün olduğunca OPTIONAL MATCH kullan — sonuç yoksa boş dönsün, hata değil.
-4. RETURN ifadesinde alias kullan: RETURN e.id AS cookie_adi, e.type AS tur
-5. Sadece READ sorguları yaz (MATCH, RETURN, WHERE, WITH, OPTIONAL MATCH).
+DOĞRU — YALNIZCA BU FORMAT:
+  MATCH (n:EtiketAdi) WHERE n.contract_id = '{contract_id}' RETURN n
 
-ÖRNEK SORGULAR:
-# Tüm çerezleri bul (name null olabilir, coalesce kullan):
-MATCH (c:Contract {{contract_db_id: '{contract_id}'}})
-MATCH (c)-[:HAS_ENTITY]->(cookie:Cookie)
-RETURN cookie.id AS adi, coalesce(cookie.type, cookie.name, 'bilinmiyor') AS tur, cookie.duration AS sure
+=== MEVCUT ŞEMA ({schema}) ===
 
-# Hukuki dayanakları bul:
-MATCH (c:Contract {{contract_db_id: '{contract_id}'}})
-OPTIONAL MATCH (c)-[:HAS_ENTITY]->(lb:LegalBasis)
-OPTIONAL MATCH (c)-[:HAS_ENTITY]->(reg:Regulation)
-RETURN coalesce(lb.name, lb.id) AS hukuki_dayanak, coalesce(reg.name, reg.id) AS yonetmelik
+DÜĞÜM ETİKETLERİ (her birinde contract_id property'si var):
+  Cookie | Purpose | LegalBasis | Organization | Regulation |
+  DataCategory | Obligation | Penalty | Person | ContractClause
 
-# Tüm entity'leri türlerine göre listele:
-MATCH (c:Contract {{contract_db_id: '{contract_id}'}})
-MATCH (c)-[:HAS_ENTITY]->(e)
-RETURN labels(e) AS tur, coalesce(e.name, e.id) AS adi
-ORDER BY tur
+İLİŞKİLER (gerekirse kullan):
+  (Cookie)-[:PROCESSED_FOR]->(Purpose)
+  (Purpose)-[:BASED_ON]->(LegalBasis)
+  (Organization)-[:USES]->(Cookie)
+  (Organization)-[:PROCESSES]->(DataCategory)
+  (ContractClause)-[:REFERENCES]->(Regulation)
+  (ContractClause)-[:HAS_OBLIGATION]->(Obligation)
 
-# Belirli kelimeyi içeren entity'leri bul:
-MATCH (c:Contract {{contract_db_id: '{contract_id}'}})
-MATCH (c)-[:HAS_ENTITY]->(e)
-WHERE toLower(e.id) CONTAINS 'kvkk' OR toLower(coalesce(e.name,'')) CONTAINS 'kvkk'
-RETURN labels(e) AS tur, coalesce(e.name, e.id) AS adi
+=== SORGU ŞABLONLARI ===
+
+Tek etiket sorgusu:
+  MATCH (n:EtiketAdi) WHERE n.contract_id = '{contract_id}' RETURN n
+
+İki etiket, ilişkisiz (birden fazla şey sorulduğunda):
+  MATCH (a:EtiketA) WHERE a.contract_id = '{contract_id}'
+  WITH collect(a) AS listA
+  MATCH (b:EtiketB) WHERE b.contract_id = '{contract_id}'
+  RETURN listA, collect(b) AS listB
+
+İlişkiyle bağlı iki düğüm:
+  MATCH (n:EtiketA)-[r:ILISKI_ADI]->(m:EtiketB)
+  WHERE n.contract_id = '{contract_id}'
+  RETURN n, r, m
+
+Tüm entity'ler (genel bakış soruları için):
+  MATCH (n) WHERE n.contract_id = '{contract_id}' AND NOT n:Contract RETURN n
+
+=== KARAR AĞACI ===
+
+Kullanıcı "çerez" veya "cookie" soruyorsa   → MATCH (n:Cookie) WHERE n.contract_id = '{contract_id}' RETURN n
+Kullanıcı "amaç" veya "purpose" soruyorsa   → MATCH (n:Purpose) WHERE n.contract_id = '{contract_id}' RETURN n
+Kullanıcı "yasal dayanak" soruyorsa         → MATCH (n:LegalBasis) WHERE n.contract_id = '{contract_id}' RETURN n
+Kullanıcı "kuruluş/şirket" soruyorsa        → MATCH (n:Organization) WHERE n.contract_id = '{contract_id}' RETURN n
+Kullanıcı "yönetmelik/kanun" soruyorsa      → MATCH (n:Regulation) WHERE n.contract_id = '{contract_id}' RETURN n
+Kullanıcı "veri kategorisi" soruyorsa       → MATCH (n:DataCategory) WHERE n.contract_id = '{contract_id}' RETURN n
+Kullanıcı "yükümlülük" soruyorsa            → MATCH (n:Obligation) WHERE n.contract_id = '{contract_id}' RETURN n
+Kullanıcı "madde/clause" soruyorsa          → MATCH (n:ContractClause) WHERE n.contract_id = '{contract_id}' RETURN n
+Kullanıcı genel bir soru soruyorsa          → MATCH (n) WHERE n.contract_id = '{contract_id}' AND NOT n:Contract RETURN n
 
 Kullanıcı Sorusu: {question}
 
-Cypher Sorgusu (SADECE Cypher kodu yaz — ``` işaretleri, açıklama veya yorum YOK):"""
+Cypher Sorgusu (SADECE Cypher kodu — ``` işaretleri, açıklama veya yorum YOK):"""
 
 # ─── Soru-Cevap Promptu ───────────────────────────────────────────────────────
 # Bu prompt, Cypher sorgusundan dönen ham Neo4j verisini doğal dile çeviriyor.
@@ -159,11 +157,12 @@ def _build_chain(contract_id: uuid.UUID) -> GraphCypherQAChain | None:
     logger.info("Chat zinciri için Neo4j şeması yenilendi:\n%s", graph.schema)
 
     # ── Cypher üretim promptunu sözleşme ID'siyle kilitle ─────────────────────
+    # .partial() yöntemi; partial_variables constructor parametresinden daha
+    # geniş LangChain sürüm uyumluluğu sağlıyor ve KeyError riskini ortadan kaldırıyor.
     cypher_prompt = PromptTemplate(
         template=_CYPHER_GENERATION_TEMPLATE,
         input_variables=["schema", "question"],
-        partial_variables={"contract_id": str(contract_id)},
-    )
+    ).partial(contract_id=str(contract_id))
 
     # ── QA promptu: sabit, contract_id bağımsız ───────────────────────────────
     qa_prompt = PromptTemplate(
@@ -214,7 +213,15 @@ def _run_chain_sync(question: str, contract_id: uuid.UUID) -> dict:
     _orig_generate = chain.cypher_generation_chain
 
     class _SanitizingChain:
-        """Cypher output'undan markdown code fence'leri temizleyen ince sarmalayıcı."""
+        """
+        Cypher output'undan markdown code fence'leri temizleyen ince sarmalayıcı.
+
+        LangChain 0.3.x LCEL'de invoke() dönüş tipi değişkendir:
+          - str          : StrOutputParser sonrası (eski davranış)
+          - AIMessage    : OutputParser yoksa (content attr'u var)
+          - dict         : {"text": "..."} formatı (bazı LLMChain versiyonları)
+        Üç tip de ayrı ayrı ele alınıyor.
+        """
         def __init__(self, inner):
             self._inner = inner
 
@@ -222,17 +229,31 @@ def _run_chain_sync(question: str, contract_id: uuid.UUID) -> dict:
         def _clean(text: str) -> str:
             import re
             text = text.strip()
+            # ```cypher ... ``` veya ``` ... ``` bloklarını temizle
             text = re.sub(r"^```(?:cypher)?\s*", "", text, flags=re.IGNORECASE)
             text = re.sub(r"\s*```$", "", text)
             return text.strip()
 
         def invoke(self, inputs, **kwargs):
             output = self._inner.invoke(inputs, **kwargs)
-            return self._clean(output) if isinstance(output, str) else output
+            # AIMessage (LangChain LCEL varsayılan çıktısı)
+            if hasattr(output, "content") and isinstance(output.content, str):
+                output.content = self._clean(output.content)
+                return output
+            # {"text": "..."} dict formatı
+            if isinstance(output, dict) and isinstance(output.get("text"), str):
+                output["text"] = self._clean(output["text"])
+                return output
+            # Düz string
+            if isinstance(output, str):
+                return self._clean(output)
+            return output
 
         def run(self, inputs, **kwargs):
             output = self._inner.run(inputs, **kwargs)
-            return self._clean(output) if isinstance(output, str) else output
+            if isinstance(output, str):
+                return self._clean(output)
+            return output
 
         def __getattr__(self, name):
             return getattr(self._inner, name)
@@ -242,15 +263,16 @@ def _run_chain_sync(question: str, contract_id: uuid.UUID) -> dict:
     try:
         result = chain.invoke({"query": question})
     except Exception as exc:
-        logger.error(
-            "Chat zinciri hatasi: contract_id=%s soru=%r hata=%s",
-            contract_id, question[:50], exc,
+        # logger.exception → tam stack trace'i loglar; sadece mesaj değil
+        logger.exception(
+            "Chat zinciri hatasi [FULL TRACEBACK]: contract_id=%s soru=%r hata_tipi=%s hata=%s",
+            contract_id, question[:50], type(exc).__name__, exc,
         )
-        # Cypher SyntaxError veya başka bir Neo4j hatası — fallback: tüm entity'leri döndür
-        # ve QA LLM'in ham veriyle cevap üretmesine izin ver.
+        # Cypher SyntaxError veya başka bir Neo4j hatası — fallback: contract_id
+        # property tabanlı doğrudan sorgu. HAS_ENTITY bağlantısına bağımlı değil.
         fallback_cypher = (
-            f"MATCH (c:Contract {{contract_db_id: '{contract_id}'}}) "
-            f"MATCH (c)-[:HAS_ENTITY]->(e) "
+            f"MATCH (e:__Entity__ {{contract_id: '{contract_id}'}}) "
+            f"WHERE NOT e:Contract "
             f"RETURN labels(e) AS tur, e.id AS adi, e.name AS isim, e.type AS tip "
             f"LIMIT 50"
         )
@@ -273,7 +295,10 @@ def _run_chain_sync(question: str, contract_id: uuid.UUID) -> dict:
                 "generated_cypher": fallback_cypher + " [FALLBACK]",
             }
         except Exception as fallback_exc:
-            logger.error("Fallback da basarisiz: %s", fallback_exc)
+            logger.exception(
+                "Fallback da basarisiz [FULL TRACEBACK]: contract_id=%s hata_tipi=%s hata=%s",
+                contract_id, type(fallback_exc).__name__, fallback_exc,
+            )
             return {
                 "answer": "Soru işlenirken bir hata oluştu. Lütfen soruyu yeniden ifade edin.",
                 "context_nodes": [],
