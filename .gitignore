@@ -1,0 +1,94 @@
+# ─── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ─── Sanal Ortamlar ───────────────────────────────────────────────────────────
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# ─── IDE ve Editörler ─────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# ─── Test ve Coverage ─────────────────────────────────────────────────────────
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+htmlcov/
+
+# ─── Dağıtım ──────────────────────────────────────────────────────────────────
+*.manifest
+*.spec
+
+# ─── Jupyter ──────────────────────────────────────────────────────────────────
+.ipynb_checkpoints
+*.ipynb
+
+# ─── Mypy ─────────────────────────────────────────────────────────────────────
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# ─── Alembic (migration versiyonları hariç) ───────────────────────────────────
+# alembic/versions/ klasörünü commit ediyorum ama geçici dosyaları değil
+*.pyc
+
+# ─── Loglar ───────────────────────────────────────────────────────────────────
+*.log
+logs/
+*.log.*
+
+# ─── Docker ───────────────────────────────────────────────────────────────────
+# docker-compose.override.yml kişisel ayarlar içerebilir
+docker-compose.override.yml
+
+# ─── Proje Özel ───────────────────────────────────────────────────────────────
+# Yüklenen dokümanlar ve geçici işleme dosyaları
+uploads/
+temp/
+.tmp/
+
+# ─── Geliştirici Günlüğü (sadece lokal) ──────────────────────────────────────
+docs/developer_diary.md
+
+# ─── Claude Code yerel ayarları (API key içerebilir) ─────────────────────────
+.claude/
+*.pdf

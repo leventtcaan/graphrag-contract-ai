@@ -1,0 +1,47 @@
+# ─── Web Framework ────────────────────────────────────────────────────────────
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+
+# ─── Veri Doğrulama ve Ayarlar ────────────────────────────────────────────────
+pydantic==2.10.3
+pydantic-settings==2.7.0
+
+# ─── Ortam Değişkenleri ───────────────────────────────────────────────────────
+python-dotenv==1.0.1
+
+# ─── PostgreSQL (İlişkisel Veritabanı) ───────────────────────────────────────
+sqlalchemy[asyncio]==2.0.36
+asyncpg==0.30.0           # Async PostgreSQL sürücüsü
+alembic==1.14.0           # Veritabanı migration'ları için
+
+# ─── Neo4j (Grafik Veritabanı) ────────────────────────────────────────────────
+neo4j==5.27.0             # Resmi Python sürücüsü; async desteği var
+
+# ─── Kimlik Doğrulama ve Güvenlik ────────────────────────────────────────────
+bcrypt==5.0.0             # Şifre hash'leme (passlib uyumsuzluğu nedeniyle direkt kullanıyoruz)
+PyJWT==2.10.1             # JWT token oluşturma ve doğrulama
+python-multipart==0.0.20  # OAuth2 form verisi için (OAuth2PasswordRequestForm)
+
+# ─── HTTP İstemcisi ───────────────────────────────────────────────────────────
+httpx==0.28.1             # Async HTTP istekleri için; test client olarak da kullanıyorum
+requests==2.32.5          # Senkron HTTP; test_pipeline.py betiği için
+
+# ─── Test Araçları ────────────────────────────────────────────────────────────
+pytest==8.3.4
+pytest-asyncio==0.24.0
+pytest-cov==6.0.0
+
+# ─── AI / LLM ─────────────────────────────────────────────────────────────────
+langchain                           # LLM orkestrasyon çerçevesi
+langchain-text-splitters            # RecursiveCharacterTextSplitter
+langchain-groq                      # Groq LPU entegrasyonu (ücretsiz, ultra hızlı)
+langchain-huggingface               # HuggingFace lokal embedding modelleri
+langchain-community                 # PyPDFLoader ve topluluk entegrasyonları
+langchain-neo4j                     # Neo4jGraph + GraphCypherQAChain entegrasyonu
+langchain-experimental              # LLMGraphTransformer (entity/relation extraction)
+sentence-transformers==3.3.1        # all-MiniLM-L6-v2 embedding motoru (lokal, ücretsiz)
+pypdf==5.3.1                        # PDF okuma (LangChain'in tercih ettiği motor)
+aiofiles==24.1.0                    # Asenkron dosya I/O
+
+# ─── Kod Kalitesi ─────────────────────────────────────────────────────────────
+ruff==0.8.4               # Hem linter hem formatter; flake8 + black yerine
