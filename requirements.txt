@@ -40,7 +40,8 @@ langchain-community                 # PyPDFLoader ve topluluk entegrasyonları
 langchain-neo4j                     # Neo4jGraph + GraphCypherQAChain entegrasyonu
 langchain-experimental              # LLMGraphTransformer (entity/relation extraction)
 sentence-transformers==3.3.1        # all-MiniLM-L6-v2 embedding motoru (lokal, ücretsiz)
-pypdf==5.3.1                        # PDF okuma (LangChain'in tercih ettiği motor)
+pymupdf                             # PDF okuma — Türkçe UTF-8 encoding için güvenilir (pypdf'in yerine)
+pypdf==5.3.1                        # pypdf: LangChain bağımlılığı olarak bırakıyorum ama doğrudan kullanmıyorum
 aiofiles==24.1.0                    # Asenkron dosya I/O
 
 # ─── Kod Kalitesi ─────────────────────────────────────────────────────────────

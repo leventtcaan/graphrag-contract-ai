@@ -64,17 +64,19 @@ DOĞRU — YALNIZCA BU FORMAT:
 
 DÜĞÜM ETİKETLERİ ve ÖNEMLİ PROPERTY'LERİ (her birinde contract_id property'si var):
 
-  Cookie        → name, type, duration, provider
-  Purpose       → name, description, basis
-  LegalBasis    → name, description, article, number
-  Organization  → name, type, address, location   ← adres bilgisi burada!
-  Person        → name, type, address, location   ← kişi adresi burada!
-  Regulation    → name, description, article
-  DataCategory  → name, type, description
-  Obligation    → name, description, type, value
-  Penalty       → name, description, type, amount
-  ContractClause → name, description, number, clause_number, article
-                   ← madde numaraları burada! "5(2)(f)", "8.1" gibi formatlar
+  Cookie          → name, type, duration, provider
+  Purpose         → name, description, basis
+  LegalBasis      → name, description, article, number
+  Organization    → name, type, address, location   ← adres bilgisi burada!
+  Person          → name, type, address, location   ← kişi adresi burada!
+  Regulation      → name, description, article
+  DataCategory    → name, type, description
+  Obligation      → name, description, type, value
+  Penalty         → name, description, type, amount
+  ContractClause  → name, description, number, clause_number, article
+                    ← aydınlatma metni bölümleri (Veri Sorumlusu, İşleme Amaçları vb.)
+  LegalReference  → name, number, article           ← yasal atıflar burada!
+                    "6698 sk. m.10", "KVKK m.5/1", "5(2)(f) bendi" gibi formatlar
 
 İLİŞKİLER (gerekirse kullan):
   (Cookie)-[:PROCESSED_FOR]->(Purpose)
@@ -83,6 +85,9 @@ DÜĞÜM ETİKETLERİ ve ÖNEMLİ PROPERTY'LERİ (her birinde contract_id proper
   (Organization)-[:PROCESSES]->(DataCategory)
   (ContractClause)-[:REFERENCES]->(Regulation)
   (ContractClause)-[:HAS_OBLIGATION]->(Obligation)
+  (LegalBasis)-[:CITES]->(LegalReference)
+  (Obligation)-[:CITES]->(LegalReference)
+  (Purpose)-[:CITES]->(LegalReference)
 
 === SORGU ŞABLONLARI ===
 
@@ -120,14 +125,22 @@ Kullanıcı "adres/address/konum/yer/merkez/nerede" soruyorsa →
   MATCH (b:Person) WHERE b.contract_id = '{contract_id}'
   RETURN orgs, collect(b) AS persons
 
-Kullanıcı "madde" veya "clause" veya "5(2)(f)" gibi parantezli/noktalı madde numarası soruyorsa →
+Kullanıcı "madde/bölüm/clause/veri sorumlusu/işleme amaç" soruyorsa →
   MATCH (n:ContractClause) WHERE n.contract_id = '{contract_id}' RETURN n
+
+Kullanıcı "5(2)(f)" veya "KVKK m." veya "6698" veya "kanun maddesi/bendi" soruyorsa →
+  MATCH (a:LegalReference) WHERE a.contract_id = '{contract_id}'
+  WITH collect(a) AS refs
+  MATCH (b:LegalBasis) WHERE b.contract_id = '{contract_id}'
+  RETURN refs, collect(b) AS bases
 
 Kullanıcı hem madde hem de yasal dayanak soruyorsa →
   MATCH (a:ContractClause) WHERE a.contract_id = '{contract_id}'
   WITH collect(a) AS clauses
   MATCH (b:LegalBasis) WHERE b.contract_id = '{contract_id}'
-  RETURN clauses, collect(b) AS bases
+  WITH clauses, collect(b) AS bases
+  MATCH (c:LegalReference) WHERE c.contract_id = '{contract_id}'
+  RETURN clauses, bases, collect(c) AS refs
 
 Kullanıcı genel bir soru soruyorsa →
   MATCH (n) WHERE n.contract_id = '{contract_id}' AND NOT n:Contract RETURN n

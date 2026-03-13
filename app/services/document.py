@@ -7,12 +7,13 @@ Bu servis, ham dosyadan metin elde etme sürecinin tamamından sorumlu.
 """
 
 import logging
+import unicodedata
 import uuid
 from pathlib import Path
 
 import aiofiles
+import pymupdf  # PyMuPDF — Türkçe PDF encoding için pypdf'ten daha güvenilir
 from fastapi import UploadFile, HTTPException, status
-from langchain_community.document_loaders import PyPDFLoader
 
 from app.core.config import settings
 
@@ -91,35 +92,38 @@ async def extract_text_from_pdf(file_path: Path) -> str:
     """
     Kaydedilen PDF'den ham metni çıkarıyorum.
 
-    PyPDFLoader'ı LangChain üzerinden kullanıyorum.
-    Neden LangChain'in loader'ı? Çünkü çıktısı doğrudan LangChain Document nesnesi —
-    ilerleyen sprint'te bu Document'ları text splitter'dan geçirip embedding'e besleyeceğim.
-    Aynı arayüzü koruyarak loader'ı değiştirebilirim (pypdf → pdfplumber → unstructured).
-
-    Teknik not: PyPDFLoader senkron çalışıyor. Bunu thread pool'da çalıştırmak
-    en doğrusu olurdu, ama şimdilik basit tutuyorum. Yüksek yük durumunda
-    asyncio.to_thread() ile sarmalamayı düşüneceğim.
+    PyMuPDF kullanıyorum — pypdf'in yerine.
+    Neden: pypdf bazı Türkçe PDF'lerde font-to-unicode mapping'i yanlış
+    yorumluyor ve 'Kişisel' → 'Ki?isel', 'İnternet' → '?nternet' gibi
+    bozuk metin üretiyor.
+    PyMuPDF PDF spec'teki ToUnicode CMap tablosunu doğru parse ediyor;
+    her sayfayı garantili UTF-8 string olarak döndürüyor.
     """
     if not file_path.exists():
         raise FileNotFoundError(f"PDF dosyası bulunamadı: {file_path}")
 
     try:
-        # LangChain Document nesneleri list olarak dönüyor — her sayfa ayrı Document
-        loader = PyPDFLoader(str(file_path))
-        documents = loader.load()
+        pdf = pymupdf.open(str(file_path))
+        pages_text: list[str] = []
+        try:
+            for page in pdf:
+                raw = page.get_text("text")
+                # NFC normalizasyonu: combining Unicode karakterlerini birleştirir
+                # örn. "I\u0307" (I + dot above) → "İ"
+                clean = unicodedata.normalize("NFC", raw)
+                if clean.strip():
+                    pages_text.append(clean)
+        finally:
+            pdf.close()
 
-        if not documents:
+        if not pages_text:
             logger.warning("PDF bos gorunuyor: %s", file_path)
             return ""
 
-        # Tüm sayfaların metnini birleştiriyorum; sayfa ayracı ekliyorum
-        full_text = "\n\n".join(
-            doc.page_content for doc in documents if doc.page_content.strip()
-        )
-
+        full_text = "\n\n".join(pages_text)
         logger.info(
-            "PDF islendi: %s — %d sayfa, %d karakter",
-            file_path.name, len(documents), len(full_text),
+            "PDF islendi (PyMuPDF): %s — %d sayfa, %d karakter",
+            file_path.name, len(pages_text), len(full_text),
         )
         return full_text
 

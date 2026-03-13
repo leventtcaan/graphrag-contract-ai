@@ -14,11 +14,12 @@ sorusunu artık Cypher ile milisaniyeler içinde yanıtlayabilirim.
 
 import asyncio
 import logging
+import unicodedata
 import uuid
 from pathlib import Path
 
+import pymupdf  # PyMuPDF — pypdf'e göre çok daha güvenilir UTF-8/Türkçe desteği
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import PyPDFLoader
 from langchain_core.documents import Document
 from langchain_experimental.graph_transformers import LLMGraphTransformer
 
@@ -35,6 +36,56 @@ from app.core.llm import get_llm_for_extraction
 
 logger = logging.getLogger(__name__)
 
+# ─── LLMGraphTransformer Ek Talimatlar ────────────────────────────────────────
+# Bu talimatlar doğrudan extraction system prompt'una ekleniyor.
+# Üç kritik sorunu çözüyor:
+#   1. Property boş kalıyor: LLM entity adını sadece `id`'ye yazıp `name`'i NULL bırakıyor.
+#   2. Aydınlatma metnindeki yasal atıflar ContractClause olarak çıkarılmıyor.
+#   3. Adres bilgisi Organization/Person düğümüne yazılmıyor.
+_EXTRACTION_INSTRUCTIONS = """
+=== KRİTİK PROPERTY KURALLARI ===
+
+KURAL 1 — `name` property her zaman dolu olmalı:
+Her düğüm için `id` alanına ne yazıyorsan, aynı değeri `name` alanına da MUTLAKA yaz.
+`name` alanını ASLA boş bırakma. Örnekler:
+  - Organization: id="Örnek A.Ş.", name="Örnek A.Ş."
+  - Person: id="Veri Sahibi", name="Veri Sahibi"
+  - ContractClause: id="Madde_5_2_f", name="Madde 5(2)(f)"
+
+KURAL 2 — Adres bilgisini mutlaka çıkar:
+Metinde bir kurum veya kişinin adresi geçiyorsa (posta adresi, şehir, MERSİS adresi vb.)
+bunu Organization veya Person düğümünün `address` property'sine MUTLAKA yaz.
+Adres metni yoksa `address`'i boş bırakabilirsin.
+
+KURAL 3 — Aydınlatma metni ve yasal atıflar için ÖNEMLİ:
+Bu metin bir KVKK/GDPR Aydınlatma Metni olabilir. "Madde 1/2/3" formatında geleneksel
+madde başlıkları olmayabilir. Bunun yerine şu formatlardaki yasal atıfları çıkar:
+
+  a) Türk kanun maddesi atıfları → LegalReference düğümü olarak çıkar:
+     Örnekler: "6698 sayılı Kanun'un 10'uncu maddesi"
+               "KVKK madde 11"
+               "5(2)(f) bendi"
+               "Kanunun 5. maddesi kapsamında"
+     → LegalReference düğümü: id="KVKK_m10", name="6698 sk. m.10",
+       number="10", article="5(2)(f)"
+
+  b) Aydınlatma metni bölümleri → ContractClause düğümü olarak çıkar:
+     Örnekler: "Veri Sorumlusunun Kimliği", "Kişisel Verilerin İşlenme Amaçları",
+               "Aktarılan Taraflar ve Aktarım Amaçları", "Haklarınız"
+     → ContractClause düğümü: id="Veri_Sorumlusu_Kimligi",
+       name="Veri Sorumlusunun Kimliği"
+
+  c) LegalBasis (hukuki dayanak) ifadeleri → LegalBasis düğümü:
+     Örnekler: "açık rıza", "kanuni yükümlülük", "meşru menfaat",
+               "sözleşmenin ifası için zorunluluk"
+     → LegalBasis düğümü: id="Acik_Riza", name="Açık Rıza",
+       basis="KVKK m.5/1"
+
+KURAL 4 — Veri kategorilerini çıkar:
+"ad-soyad", "TC kimlik numarası", "e-posta", "telefon", "IP adresi",
+"çerez verisi", "konum verisi" gibi ifadeler → DataCategory düğümü.
+"""
+
 # ─── Metin Bölücü Yapılandırması ──────────────────────────────────────────────
 # chunk_size=1000 token: LLMGraphTransformer'ın bağlam penceresi içinde kalması için.
 # chunk_overlap=100: Madde sınırlarında kopan bilgiyi yakalamak için örtüşme bırakıyorum.
@@ -47,13 +98,52 @@ _text_splitter = RecursiveCharacterTextSplitter(
 )
 
 
+def _normalize_text(text: str) -> str:
+    """
+    PDF'den gelen metni temizliyor ve UTF-8 bütünlüğünü garanti altına alıyorum.
+
+    PyMuPDF zaten UTF-8 döndürüyor ama bazı embedded font'lu PDF'lerde
+    Unicode birleştirme karakterleri (combining marks) ayrı kod noktaları
+    olarak gelebiliyor. NFC normalizasyonu bunları birleştirir:
+    örneğin "I\u0307" (I + combining dot) → "İ"
+    """
+    # NFC: Türkçe İ, Ğ, Ş, Ü, Ö, Ç karakterlerini tek kod noktasına indirger
+    return unicodedata.normalize("NFC", text)
+
+
 def _load_documents_from_path(file_path: Path) -> list[Document]:
     """
     PDF'den LangChain Document listesi yüklüyorum.
+
+    PyMuPDF (pymupdf) kullanıyorum — pypdf'in yerine.
+    Neden: pypdf bazı Türkçe PDF'lerde font encoding'i yanlış yorumluyor
+    ve 'Kişisel' yerine 'Ki?isel' gibi bozuk metin üretiyor.
+    PyMuPDF, PDF spec'teki ToUnicode CMap tablosunu doğru parse ediyor
+    ve her sayfayı garantili UTF-8 string olarak döndürüyor.
+
     Senkron bir işlem; çağıran taraf asyncio.to_thread() ile sarmalıyor.
     """
-    loader = PyPDFLoader(str(file_path))
-    return loader.load()
+    documents = []
+    pdf = pymupdf.open(str(file_path))
+    try:
+        for page_num in range(len(pdf)):
+            page = pdf[page_num]
+            # "text" modu: saf düz metin, UTF-8 garantili
+            raw_text = page.get_text("text")
+            clean_text = _normalize_text(raw_text)
+            if clean_text.strip():
+                documents.append(Document(
+                    page_content=clean_text,
+                    metadata={"page": page_num, "source": str(file_path)},
+                ))
+    finally:
+        pdf.close()
+
+    logger.info(
+        "PDF yuklendi (PyMuPDF): %s — %d sayfa, %d dolu sayfa",
+        file_path.name, len(pdf), len(documents),
+    )
+    return documents
 
 
 def _split_documents(documents: list[Document]) -> list[Document]:
@@ -113,6 +203,7 @@ def _extract_graph_documents(
             # Sayısal değerler: ceza miktarı, süre vb.
             "value", "amount",
         ],
+        additional_instructions=_EXTRACTION_INSTRUCTIONS,
     )
 
     logger.info(

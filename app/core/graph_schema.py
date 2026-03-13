@@ -40,6 +40,7 @@ NODE_COOKIE          = "Cookie"            # Çerez (adı, tipi, süresi)
 NODE_PURPOSE         = "Purpose"           # Veri/çerez işleme amacı
 NODE_LEGAL_BASIS     = "LegalBasis"        # Hukuki dayanak (kanun maddesi)
 NODE_DATA_CATEGORY   = "DataCategory"      # İşlenen kişisel veri kategorisi
+NODE_LEGAL_REFERENCE = "LegalReference"    # Yasal mevzuat atfı: "6698 sk. m.10", "5(2)(f)" vb.
 
 # İlişki tipleri (Relationship Types)
 REL_HAS_CLAUSE       = "HAS_CLAUSE"        # Contract → ContractClause
@@ -56,18 +57,21 @@ REL_PROCESSED_FOR    = "PROCESSED_FOR"     # Cookie/DataCategory → Purpose
 REL_BASED_ON         = "BASED_ON"          # Purpose/Obligation → LegalBasis
 REL_USES             = "USES"              # Organization → Cookie
 REL_PROCESSES        = "PROCESSES"         # Organization → DataCategory
+REL_CITES            = "CITES"             # LegalBasis/Obligation/Purpose → LegalReference
 
-# LLMGraphTransformer için whitelist — çerez aydınlatma metni odaklı.
+# LLMGraphTransformer için whitelist — aydınlatma metni + sözleşme odaklı.
 ALLOWED_NODES = [
     NODE_CONTRACT, NODE_CLAUSE, NODE_ORGANIZATION, NODE_PERSON,
     NODE_OBLIGATION, NODE_PENALTY, NODE_REGULATION, NODE_RISK_AREA,
     NODE_COOKIE, NODE_PURPOSE, NODE_LEGAL_BASIS, NODE_DATA_CATEGORY,
+    NODE_LEGAL_REFERENCE,
 ]
 
 ALLOWED_RELATIONSHIPS = [
     REL_HAS_CLAUSE, REL_HAS_OBLIGATION, REL_PENALIZED_BY,
     REL_AGREED_TO, REL_REFERENCES, REL_INVOLVES, REL_CREATES_RISK,
     REL_HAS_COOKIE, REL_PROCESSED_FOR, REL_BASED_ON, REL_USES, REL_PROCESSES,
+    REL_CITES,
 ]
 
 
