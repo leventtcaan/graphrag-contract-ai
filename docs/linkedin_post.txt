@@ -1,0 +1,125 @@
+════════════════════════════════════════════════════════════════════
+  LinkedIn Gönderisi — Türkçe Versiyon
+════════════════════════════════════════════════════════════════════
+
+Staj ararken sadece "kod biliyorum" demek yerine, "bir problemi çözdüm"
+demeyi tercih ettim.
+
+İşte o problem:
+
+Hukuk metinleri okumak gerçekten sıkıcı. Hele ki bir çerez politikasının
+KVKK ile uyumlu olup olmadığını bulmak için 50 sayfalık bir belgeyi baştan
+sona taramak zorundaysanız. Bunu her gün yapan insanlar var.
+
+Ben bu süreci otomatikleştiren bir platform kurdum.
+
+Ama bunu yaparken basit bir "PDF'i LLM'e ver, özet al" yaklaşımı
+kullanmadım. Çünkü hukuki metinler için bu yetmiyor.
+
+Düşünün: "Madde 7, veri saklama süresini 90 gün olarak belirliyor ve
+bu KVKK'nın 4. maddesine atıf yapıyor. İhlal halinde Madde 12'deki
+ceza uygulanıyor." Bu zinciri düz bir metin aramayla bulamazsınız.
+
+GraphRAG kullandım.
+
+PDF yüklendiğinde, bir LLM sözleşmedeki tüm tarafları, maddeleri,
+yükümlülükleri ve düzenlemeleri çıkarıp Neo4j'de bir bilgi grafiği
+oluşturuyor. Kullanıcı Türkçe soru soruyor; sistem bunu bir Cypher
+sorgusuna çeviriyor ve grafikten kesin, deterministik cevap alıyor.
+
+Ayrıca bir otomatik uyum skoru hesaplıyor: 0-100 arası bir puan,
+riskli maddeler ve öneriler.
+
+Sıfırdan kurdum. Akdeniz Üniversitesi CSE 3. sınıf öğrencisiyim.
+
+─────────────────────────────────────────────────────────────────────
+  Deep Dive — Teknik Meraklılar İçin
+─────────────────────────────────────────────────────────────────────
+
+Stack:
+  • Backend:     FastAPI + Python (tamamen async)
+  • Graf DB:     Neo4j + APOC (multi-hop compliance sorguları)
+  • İlişkisel:   PostgreSQL (kullanıcılar, multi-tenant izolasyon)
+  • LLM:         Groq / Llama-3.3-70b (ücretsiz tier, 128K context)
+  • Embedding:   HuggingFace all-MiniLM-L6-v2 (tamamen lokal, API maliyeti sıfır)
+  • Orkestrasyon: LangChain (LLMGraphTransformer + GraphCypherQAChain)
+  • Frontend:    Next.js 15 + Tailwind CSS + Zustand
+
+En zorlu teknik problem:
+LangChain'in GraphCypherQAChain'i bazen Cypher sorgusunu
+```cypher ... ``` markdown bloğu içinde Neo4j'e gönderiyor ve
+SyntaxError alıyordu. Küçük bir detay ama production'da her şeyi
+kırıyor. Chain üzerinde monkey-patch ile çözdüm.
+
+Güvenlik:
+Her Cypher sorgusuna contract_id partial_variables olarak enjekte
+ediliyor — tenant izolasyonu mimarisel olarak garantili.
+
+GitHub: [link ekle]
+
+#Python #FastAPI #Neo4j #GraphRAG #LangChain #NextJS #KVKK #GDPR
+#StudentProject #AkdenizUniversity #OpenToWork
+
+
+════════════════════════════════════════════════════════════════════
+  LinkedIn Post — English Version
+════════════════════════════════════════════════════════════════════
+
+Instead of saying "I can code" in job applications,
+I wanted to say "I solved a real problem."
+
+Here's the problem:
+
+Reading legal documents is genuinely tedious. Especially when you
+have to scan 50 pages to find out whether a cookie policy actually
+complies with GDPR — and someone has to do this every single day.
+
+So I built a platform to automate it.
+
+But I didn't go with the obvious "give PDF to LLM, get summary"
+approach. For legal text, that's not precise enough.
+
+Think about it: "Clause 7 sets a 90-day data retention period and
+references GDPR Article 17. Violation triggers the penalty in
+Clause 12." You can't find that chain with plain text search.
+
+So I used GraphRAG.
+
+When you upload a contract, an LLM extracts all parties, clauses,
+obligations, and regulations into a Neo4j knowledge graph. When you
+ask a question in plain language, the system converts it to a Cypher
+query and gets a deterministic, exact answer from the graph.
+
+It also generates an automated compliance score: 0–100, with
+risk-flagged clauses and actionable recommendations.
+
+Built from scratch. I'm a 3rd-year CS student at Akdeniz University.
+
+─────────────────────────────────────────────────────────────────────
+  Deep Dive — For Technical Readers
+─────────────────────────────────────────────────────────────────────
+
+Stack:
+  • Backend:       FastAPI + Python (async throughout)
+  • Graph DB:      Neo4j + APOC (multi-hop compliance queries)
+  • Relational DB: PostgreSQL (users, multi-tenant isolation)
+  • LLM:           Groq / Llama-3.3-70b (free tier, 128K context)
+  • Embeddings:    HuggingFace all-MiniLM-L6-v2 (local, zero API cost)
+  • Orchestration: LangChain (LLMGraphTransformer + GraphCypherQAChain)
+  • Frontend:      Next.js 15 + Tailwind CSS + Zustand
+
+Hardest technical problem:
+LangChain's GraphCypherQAChain sometimes sends Cypher queries
+wrapped in ```cypher ... ``` markdown fences directly to Neo4j,
+causing a SyntaxError. Tiny detail, breaks everything in production.
+Fixed it with a monkey-patch wrapper on the chain's generation step.
+
+Security:
+Every Cypher query gets the contract_id injected via LangChain's
+partial_variables — cross-tenant data leakage is architecturally
+impossible, not just "handled."
+
+GitHub: [add link]
+
+#Python #FastAPI #Neo4j #GraphRAG #LangChain #NextJS #GDPR #KVKK
+#ComputerScience #StudentProject #OpenToWork #SoftwareEngineering

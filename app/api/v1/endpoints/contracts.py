@@ -7,11 +7,15 @@ Endpoint'ler ince tutmak bakım kolaylığı sağlıyor ve test yazmayı
 önemli ölçüde basitleştiriyor.
 """
 
+import logging
 import uuid
+from pathlib import Path
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, status
 from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger(__name__)
 
 from app.api.deps import get_current_active_user
 from app.core.database import get_db_session
@@ -24,7 +28,9 @@ from app.schemas.contract import (
     ContractUpdate,
 )
 from app.schemas.chat import ChatRequest, ChatResponse
+from app.schemas.compliance import ComplianceReport
 from app.services.chat import ask_contract_question
+from app.services.compliance import generate_compliance_report
 from app.services.contract import contract_service
 from app.services.document import save_upload_file, extract_text_from_pdf
 from app.services.graph_builder import build_contract_graph
@@ -169,7 +175,11 @@ async def delete_contract(
     current_user: CurrentUser,  # JWT koruması
 ) -> None:
     """
-    Sözleşmeyi hard delete ile siliyorum.
+    Sözleşmeyi hard delete ile siliyorum: önce diskten, sonra veritabanından.
+
+    Dosya silme başarısız olursa (dosya zaten silinmiş, izin hatası vb.)
+    sadece logluyorum ve DB silmeye devam ediyorum — tutarsız durum yerine
+    "DB temiz, disk kirli" tercih edilebilir bir trade-off.
     204 No Content döndürüyorum — silme başarılıysa body yok.
     """
     contract = await contract_service.get_contract_by_id(db=db, contract_id=contract_id)
@@ -178,6 +188,31 @@ async def delete_contract(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Sözleşme bulunamadı: {contract_id}",
         )
+
+    # ── Tenant izolasyonu ─────────────────────────────────────────────────────
+    if contract.tenant_id is not None and contract.tenant_id != current_user.tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Sözleşme bulunamadı: {contract_id}",
+        )
+
+    # ── Diskten dosyayı sil (varsa) ───────────────────────────────────────────
+    if contract.file_path:
+        try:
+            file_path = Path(contract.file_path)
+            if file_path.exists():
+                file_path.unlink()
+                logger.info("Sözleşme dosyası diskten silindi: %s", contract.file_path)
+            else:
+                logger.warning("Dosya bulunamadı (zaten silinmiş?): %s", contract.file_path)
+        except OSError as exc:
+            # Dosya silme hatası DB silmesini engellemiyoruz — sadece logluyoruz
+            logger.warning(
+                "Dosya silinirken hata oluştu, DB silmeye devam ediliyor: %s — %s",
+                contract.file_path,
+                exc,
+            )
+
     await contract_service.delete_contract(db=db, contract=contract)
 
 
@@ -401,3 +436,61 @@ async def chat_with_contract(
         context_nodes=result["context_nodes"],
         generated_cypher=result.get("generated_cypher"),
     )
+
+
+# ─── GET /{contract_id}/compliance — Otomatik Uyum Raporu ─────────────────────
+@router.get(
+    "/{contract_id}/compliance",
+    response_model=ComplianceReport,
+    summary="Sözleşme uyum raporu üret",
+    description=(
+        "Neo4j bilgi grafiğindeki tüm varlıkları Groq LLM'e göndererek "
+        "otomatik uyum skoru, madde bazlı risk analizi ve öneriler üretir. "
+        "Sözleşme önce /analyze endpoint'iyle işlenmiş olmalıdır. "
+        "İşlem 15-30 saniye alabilir."
+    ),
+)
+async def get_compliance_report(
+    contract_id: uuid.UUID,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> ComplianceReport:
+    """
+    Sözleşmenin otomatik uyum raporunu üretiyorum.
+
+    Akış:
+      1. Sözleşmeyi bul ve tenant izolasyonunu doğrula
+      2. ANALYZED statüsünde olduğunu kontrol et
+      3. generate_compliance_report() → Neo4j sorgusu + Groq LLM analizi
+      4. Yapılandırılmış ComplianceReport döndür
+
+    Bu endpoint saf GET — sözleşmeyi veya grafik verisini değiştirmiyor.
+    Her çağrıda yeni bir LLM analizi yapılıyor; sonuç önbelleğe alınmıyor.
+    """
+    # ── Sözleşmeyi bul ────────────────────────────────────────────────────────
+    contract = await contract_service.get_contract_by_id(db=db, contract_id=contract_id)
+    if contract is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Sözleşme bulunamadı: {contract_id}",
+        )
+
+    # ── Tenant izolasyonu ─────────────────────────────────────────────────────
+    if contract.tenant_id is not None and contract.tenant_id != current_user.tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Sözleşme bulunamadı: {contract_id}",
+        )
+
+    # ── Analiz edilmiş mi? ────────────────────────────────────────────────────
+    if contract.status != ContractStatus.ANALYZED:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                f"Sözleşme henüz analiz edilmemiş (durum: {contract.status.value}). "
+                "Önce POST /{id}/analyze endpoint'ini çalıştırın."
+            ),
+        )
+
+    # ── Neo4j → LLM → ComplianceReport ───────────────────────────────────────
+    return await generate_compliance_report(contract_id=contract_id)

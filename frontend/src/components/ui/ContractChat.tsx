@@ -219,9 +219,20 @@ function ThinkingIndicator() {
       <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-indigo-600/20">
         <Bot className="h-3.5 w-3.5 text-indigo-400" />
       </div>
-      <div className="flex items-center gap-2 rounded-2xl rounded-tl-sm bg-slate-800 px-4 py-3">
-        <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-400" />
-        <span className="text-sm text-slate-400">Yapay zeka düşünüyor…</span>
+      {/* Üç nokta typing animasyonu */}
+      <div className="flex items-center gap-1.5 rounded-2xl rounded-tl-sm bg-slate-800 px-4 py-3.5">
+        <span
+          className="h-2 w-2 rounded-full bg-slate-500 animate-bounce"
+          style={{ animationDelay: "0ms" }}
+        />
+        <span
+          className="h-2 w-2 rounded-full bg-slate-500 animate-bounce"
+          style={{ animationDelay: "150ms" }}
+        />
+        <span
+          className="h-2 w-2 rounded-full bg-slate-500 animate-bounce"
+          style={{ animationDelay: "300ms" }}
+        />
       </div>
     </div>
   );
