@@ -113,34 +113,35 @@ def _normalize_text(text: str) -> str:
 
 def _load_documents_from_path(file_path: Path) -> list[Document]:
     """
-    PDF'den LangChain Document listesi yüklüyorum.
+    PDF'den LangChain Document listesi yüklüyorum — tam eager load.
 
-    PyMuPDF (pymupdf) kullanıyorum — pypdf'in yerine.
-    Neden: pypdf bazı Türkçe PDF'lerde font encoding'i yanlış yorumluyor
-    ve 'Kişisel' yerine 'Ki?isel' gibi bozuk metin üretiyor.
-    PyMuPDF, PDF spec'teki ToUnicode CMap tablosunu doğru parse ediyor
-    ve her sayfayı garantili UTF-8 string olarak döndürüyor.
+    Tasarım ilkesi: Bu fonksiyondan dönen listede PyMuPDF'e ait hiçbir
+    obje (Document, Page, Pixmap vb.) bulunmaz. Her Document.page_content
+    değeri saf Python str'dir; PDF kapatıldıktan sonra güvenle okunabilir.
 
-    Senkron bir işlem; çağıran taraf asyncio.to_thread() ile sarmalıyor.
+    Neden with + del + str():
+      - with: Document.__exit__ pdf.close() garantiler, finally unutulamaz
+      - del page: Page objesi her iterasyon sonunda Python heap'ten düşer
+      - str(raw): get_text() zaten str döndürür ama açık kopya isteği
+        PyMuPDF'in gelecekteki buffer optimizasyonlarına karşı sigorta
     """
-    documents = []
-    pdf = pymupdf.open(str(file_path))
-    try:
-        total_pages = len(pdf)  # Belge kapanmadan önce sayfa sayısını oku
+    documents: list[Document] = []
+    total_pages = 0
+
+    with pymupdf.open(str(file_path)) as pdf:
+        total_pages = len(pdf)
         for page_num in range(total_pages):
             page = pdf[page_num]
-            # "text" modu: saf düz metin, UTF-8 garantili
-            # get_text() döndürdüğü string tamamen belleğe alınıyor —
-            # pdf.close() çağrısından önce tüm metin kopyalanmış olur.
-            raw_text = page.get_text("text")
+            raw_text = str(page.get_text("text"))   # kesin str kopyası
+            del page                                 # PyMuPDF Page referansını bırak
             clean_text = _normalize_text(raw_text)
             if clean_text.strip():
                 documents.append(Document(
                     page_content=clean_text,
                     metadata={"page": page_num, "source": str(file_path)},
                 ))
-    finally:
-        pdf.close()  # Tüm metin stringleri bellekte; belgeyi güvenle kapat
+    # with bloğu kapandı → pdf.close() çağrıldı.
+    # documents içinde artık yalnızca plain Python str ve dict var.
 
     logger.info(
         "PDF yuklendi (PyMuPDF): %s — %d sayfa, %d dolu sayfa",

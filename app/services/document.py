@@ -103,18 +103,18 @@ async def extract_text_from_pdf(file_path: Path) -> str:
         raise FileNotFoundError(f"PDF dosyası bulunamadı: {file_path}")
 
     try:
-        pdf = pymupdf.open(str(file_path))
         pages_text: list[str] = []
-        try:
-            for page in pdf:
-                raw = page.get_text("text")
-                # NFC normalizasyonu: combining Unicode karakterlerini birleştirir
-                # örn. "I\u0307" (I + dot above) → "İ"
+
+        with pymupdf.open(str(file_path)) as pdf:
+            for page_num in range(len(pdf)):
+                page = pdf[page_num]
+                raw = str(page.get_text("text"))    # kesin str kopyası
+                del page                             # PyMuPDF Page referansını bırak
                 clean = unicodedata.normalize("NFC", raw)
                 if clean.strip():
                     pages_text.append(clean)
-        finally:
-            pdf.close()
+        # with bloğu kapandı → pdf.close() çağrıldı.
+        # pages_text içinde artık yalnızca plain Python str var.
 
         if not pages_text:
             logger.warning("PDF bos gorunuyor: %s", file_path)
