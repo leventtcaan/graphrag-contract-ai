@@ -1,3 +1,4 @@
+> 🚀 **Live Demo & Architecture Story:** To see the UI in action and read the full story behind the GraphDB integration, check out my [LinkedIn Release Post](https://www.linkedin.com/feed/update/urn:li:activity:7438463942340952064/). I'd love to connect with fellow developers!
 # IT Compliance & Contract Analyzer
 
 > A **GraphRAG-powered B2B SaaS platform** that turns dense IT contracts into
