@@ -85,3 +85,36 @@ volumes:
 networks:
   itlaw_network:
     driver: bridge
+
+api:
+    build: .
+    container_name: itlaw_api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+    environment:
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=itlaw_neo4j_secret
+      - POSTGRES_SERVER=postgres
+      - POSTGRES_USER=itlaw_user
+      - POSTGRES_PASSWORD=itlaw_secret
+      - POSTGRES_DB=itlaw_db
+    networks:
+      - itlaw_network
+
+  frontend:
+    build: ./frontend
+    container_name: itlaw_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    networks:
+      - itlaw_network
