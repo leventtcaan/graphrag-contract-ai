@@ -1,125 +1,630 @@
-════════════════════════════════════════════════════════════════════
-  LinkedIn Gönderisi — Türkçe Versiyon
-════════════════════════════════════════════════════════════════════
+╔══════════════════════════════════════════════════════════════════════════════╗
+║           GraphRAG Contract AI — TAM GÖRÜNÜRLÜK & LANSMAN STRATEJİSİ       ║
+║                  Levent Can Ceylan | Akdeniz Üniversitesi CSE 3.            ║
+╚══════════════════════════════════════════════════════════════════════════════╝
 
-Staj ararken sadece "kod biliyorum" demek yerine, "bir problemi çözdüm"
-demeyi tercih ettim.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                         STRATEJİK KARAR: ÖNCE BU'NU OKU
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-İşte o problem:
+Hedef kitle sıralaması (öncelik sırasıyla):
+  1. Türkiye'deki LegalTech / RegTech startup'larının teknik kurucuları ve CTO'ları
+  2. Türkiye'deki orta-büyük ölçekli şirketlerin Tech Lead'leri
+  3. Yurt içi ve yurt dışı şirketlerin İK uzmanları (teknik olmayan ama teknik iş arayan)
+  4. Akademik çevre ve öğrenci topluluğu (ikincil — bu seni kitleye değil, kanıta götürür)
 
-Hukuk metinleri okumak gerçekten sıkıcı. Hele ki bir çerez politikasının
-KVKK ile uyumlu olup olmadığını bulmak için 50 sayfalık bir belgeyi baştan
-sona taramak zorundaysanız. Bunu her gün yapan insanlar var.
+Tek cümlelik pozisyonlama:
+  "Production'da çalışan bir GraphRAG pipeline'ı tek başına ayağa kaldıran
+   3. sınıf öğrencisi."
 
-Ben bu süreci otomatikleştiren bir platform kurdum.
+Senin avantajın diğer öğrencilerden farkın:
+  — Canlı URL var: contractai.website
+  — Gerçek teknik kriz var ve aşıldı (Document Closed, UTF-8, Cypher SyntaxError)
+  — Standart RAG değil, GraphRAG — neden farklı olduğunu savunabiliyorsun
+  — Para harcamadan (Groq free tier, HuggingFace local) production deploy ettirdin
 
-Ama bunu yaparken basit bir "PDF'i LLM'e ver, özet al" yaklaşımı
-kullanmadım. Çünkü hukuki metinler için bu yetmiyor.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  BÖLÜM 1 — LİNKEDİN POSTU (Türkçe Ana Post — Algoritma Hackiyle)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Düşünün: "Madde 7, veri saklama süresini 90 gün olarak belirliyor ve
-bu KVKK'nın 4. maddesine atıf yapıyor. İhlal halinde Madde 12'deki
-ceza uygulanıyor." Bu zinciri düz bir metin aramayla bulamazsınız.
+[KOPYALA-YAPISTIR BAŞLANGIÇ]
+────────────────────────────────────────────────────────────────────────────────
 
-GraphRAG kullandım.
+Bir avukat arkadaşım bana şunu dedi:
 
-PDF yüklendiğinde, bir LLM sözleşmedeki tüm tarafları, maddeleri,
-yükümlülükleri ve düzenlemeleri çıkarıp Neo4j'de bir bilgi grafiği
-oluşturuyor. Kullanıcı Türkçe soru soruyor; sistem bunu bir Cypher
-sorgusuna çeviriyor ve grafikten kesin, deterministik cevap alıyor.
+"KVKK aydınlatma metnini okumak zorunda kalan herkes, aslında sadece
+şunu bilmek istiyor: Bu metin beni yasal olarak koruyor mu?
+50 sayfayı baştan sona okumak zorunda mısın? Hayır.
+Ama yanlış AI verirsen halüsinasyon alırsın, bu sefer gerçekten sorun."
 
-Ayrıca bir otomatik uyum skoru hesaplıyor: 0-100 arası bir puan,
-riskli maddeler ve öneriler.
+Bu problemi çözdüm. Canlıya aldım.
 
-Sıfırdan kurdum. Akdeniz Üniversitesi CSE 3. sınıf öğrencisiyim.
+───
 
-─────────────────────────────────────────────────────────────────────
-  Deep Dive — Teknik Meraklılar İçin
-─────────────────────────────────────────────────────────────────────
+Standart RAG yaklaşımı neden hukuki metinlerde yetersiz kalıyor?
 
-Stack:
-  • Backend:     FastAPI + Python (tamamen async)
-  • Graf DB:     Neo4j + APOC (multi-hop compliance sorguları)
-  • İlişkisel:   PostgreSQL (kullanıcılar, multi-tenant izolasyon)
-  • LLM:         Groq / Llama-3.3-70b (ücretsiz tier, 128K context)
-  • Embedding:   HuggingFace all-MiniLM-L6-v2 (tamamen lokal, API maliyeti sıfır)
-  • Orkestrasyon: LangChain (LLMGraphTransformer + GraphCypherQAChain)
-  • Frontend:    Next.js 15 + Tailwind CSS + Zustand
+Düşün:
+"Madde 10, veri saklama süresini 3 yıl olarak belirliyor."
+"Bu süre, 6698 sayılı Kanun'un 5(2)(f) bendi kapsamında meşru menfaate dayanıyor."
+"Süre aşımında ise Madde 18'deki idari para cezası devreye giriyor."
 
-En zorlu teknik problem:
-LangChain'in GraphCypherQAChain'i bazen Cypher sorgusunu
-```cypher ... ``` markdown bloğu içinde Neo4j'e gönderiyor ve
-SyntaxError alıyordu. Küçük bir detay ama production'da her şeyi
-kırıyor. Chain üzerinde monkey-patch ile çözdüm.
+Bu üç cümle birbirini referans alıyor.
+Vektör araması bu zinciri bulamaz. Chunk'lanmış metin bağlamı koparır.
 
-Güvenlik:
-Her Cypher sorgusuna contract_id partial_variables olarak enjekte
-ediliyor — tenant izolasyonu mimarisel olarak garantili.
+GraphRAG bunu çözer.
 
-GitHub: [link ekle]
+───
 
-#Python #FastAPI #Neo4j #GraphRAG #LangChain #NextJS #KVKK #GDPR
-#StudentProject #AkdenizUniversity #OpenToWork
+Ne yaptım:
 
+PDF yüklendiğinde, Llama-3.3-70b (Groq üzerinde, ücretsiz tier)
+sözleşmedeki tüm tarafları, maddeleri, yükümlülükleri, ceza maddelerini
+ve yasal referansları çıkarıp Neo4j'de bir bilgi grafiği oluşturuyor.
 
-════════════════════════════════════════════════════════════════════
-  LinkedIn Post — English Version
-════════════════════════════════════════════════════════════════════
+Kullanıcı Türkçe soru soruyor.
+Sistem soruyu Cypher sorgusuna çeviriyor.
+Grafikten kesin, izlenebilir, halüsinasyonsuz cevap dönüyor.
 
-Instead of saying "I can code" in job applications,
-I wanted to say "I solved a real problem."
+Aynı zamanda otomatik bir uyum skoru üretiyor:
+0–100 puan, riskli maddeler, somut öneriler.
 
-Here's the problem:
+───
 
-Reading legal documents is genuinely tedious. Especially when you
-have to scan 50 pages to find out whether a cookie policy actually
-complies with GDPR — and someone has to do this every single day.
+Üç teknik kriz ve çözümleri:
 
-So I built a platform to automate it.
+1. Cypher SyntaxError:
+   LangChain bazen Cypher'ı ```cypher...``` bloğu içinde Neo4j'e gönderiyordu.
+   Küçük detay, production'da her şeyi kırıyor.
+   → Chain üzerinde monkey-patch wrapper yazdım.
 
-But I didn't go with the obvious "give PDF to LLM, get summary"
-approach. For legal text, that's not precise enough.
+2. UTF-8 Türkçe bozulması:
+   pypdf, bazı Türkçe PDF'lerde "Kişisel" yerine "Ki?isel" üretiyordu.
+   → PyMuPDF'e geçtim. fitz.open() ile eager load, with bloğu içinde
+     tüm metni RAM'e kopyala, kapat, LangChain pipeline'ına ver.
+     Hiçbir referans sızmıyor.
 
-Think about it: "Clause 7 sets a 90-day data retention period and
-references GDPR Article 17. Violation triggers the penalty in
-Clause 12." You can't find that chain with plain text search.
+3. Document Closed hatası:
+   PyMuPDF'in Page objesi, PDF kapatıldıktan sonra erişilmeye çalışılınca
+   500 Internal Server Error veriyordu.
+   → load_pdf_safe() fonksiyonu: with fitz.open() as doc: içinde
+     str(page.get_text("text")) ile kesin string kopyası, del page,
+     belge kapandıktan sonra pipeline'a yalnızca plain Python objeleri gidiyor.
 
-So I used GraphRAG.
-
-When you upload a contract, an LLM extracts all parties, clauses,
-obligations, and regulations into a Neo4j knowledge graph. When you
-ask a question in plain language, the system converts it to a Cypher
-query and gets a deterministic, exact answer from the graph.
-
-It also generates an automated compliance score: 0–100, with
-risk-flagged clauses and actionable recommendations.
-
-Built from scratch. I'm a 3rd-year CS student at Akdeniz University.
-
-─────────────────────────────────────────────────────────────────────
-  Deep Dive — For Technical Readers
-─────────────────────────────────────────────────────────────────────
+───
 
 Stack:
-  • Backend:       FastAPI + Python (async throughout)
-  • Graph DB:      Neo4j + APOC (multi-hop compliance queries)
-  • Relational DB: PostgreSQL (users, multi-tenant isolation)
-  • LLM:           Groq / Llama-3.3-70b (free tier, 128K context)
-  • Embeddings:    HuggingFace all-MiniLM-L6-v2 (local, zero API cost)
-  • Orchestration: LangChain (LLMGraphTransformer + GraphCypherQAChain)
-  • Frontend:      Next.js 15 + Tailwind CSS + Zustand
 
-Hardest technical problem:
-LangChain's GraphCypherQAChain sometimes sends Cypher queries
-wrapped in ```cypher ... ``` markdown fences directly to Neo4j,
-causing a SyntaxError. Tiny detail, breaks everything in production.
-Fixed it with a monkey-patch wrapper on the chain's generation step.
+Backend:    FastAPI + Python (fully async)
+Graph DB:   Neo4j + APOC
+İlişkisel:  PostgreSQL (multi-tenant izolasyon)
+LLM:        Groq / Llama-3.3-70b-versatile (ücretsiz)
+Embedding:  HuggingFace all-MiniLM-L6-v2 (lokal, sıfır API maliyeti)
+Orkestra:   LangChain (LLMGraphTransformer + GraphCypherQAChain)
+Frontend:   Next.js 15 + Tailwind CSS + Zustand
+Deploy:     Docker Compose / DigitalOcean
 
-Security:
-Every Cypher query gets the contract_id injected via LangChain's
-partial_variables — cross-tenant data leakage is architecturally
-impossible, not just "handled."
+───
 
-GitHub: [add link]
+Akdeniz Üniversitesi CSE, 3. sınıf öğrencisiyim.
+Bu projeyi mezun olana kadar production'da tutacağım.
 
-#Python #FastAPI #Neo4j #GraphRAG #LangChain #NextJS #GDPR #KVKK
-#ComputerScience #StudentProject #OpenToWork #SoftwareEngineering
+Sistemi canlı test etmek isteyenler için:
+Yoruma sadece "Demo" yazın — credentials'ı DM'den ileteceğim.
+
+contractai.website
+
+#GraphRAG #Neo4j #FastAPI #Python #LangChain #KVKK #LegalTech
+#NextJS #Groq #Llama3 #OpenToWork #AkdenizUniversity
+
+────────────────────────────────────────────────────────────────────────────────
+[KOPYALA-YAPISTIR SONU]
+
+⚠️  DEMO YORUMLARI İÇİN PROTOKOL:
+    Yorum gelen her hesaba şu DM'i gönder:
+    ───
+    Merhaba [İSİM], ilgin için teşekkürler!
+
+    Canlı erişim için:
+    → https://contractai.website
+    → E-posta: admin@test.com
+    → Şifre: admin123
+
+    Test için KVKK aydınlatma metni veya herhangi bir PDF sözleşme yükleyebilirsin.
+    Geri bildirimlerini duymak isterim.
+    ───
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  BÖLÜM 2 — LİNKEDİN POSTU (İngilizce Uluslararası Versiyon — İkinci Post)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[KOPYALA-YAPISTIR BAŞLANGIÇ]
+────────────────────────────────────────────────────────────────────────────────
+
+3 technical crises. 1 production deployment. 0 team members.
+
+Here's what I actually solved building a GraphRAG legal AI from scratch:
+
+───
+
+The problem with standard RAG on legal documents:
+
+"Clause 10 sets a 3-year data retention period."
+"This period is grounded in legitimate interest under Article 5(2)(f)."
+"Violation triggers the administrative penalty in Clause 18."
+
+These three sentences reference each other.
+Vector search can't find this chain. Chunked text breaks the context.
+GraphRAG solves it.
+
+───
+
+What I built:
+
+When you upload a contract, Llama-3.3-70b (via Groq, free tier) extracts
+all parties, clauses, obligations, penalties, and legal references into
+a Neo4j knowledge graph.
+
+You ask a question in plain language.
+The system converts it to a Cypher query.
+The graph returns a deterministic, traceable, hallucination-free answer.
+
+It also generates a compliance score: 0–100, flagged clauses, recommendations.
+
+───
+
+3 real bugs I shipped through:
+
+① Cypher SyntaxError:
+  LangChain's GraphCypherQAChain occasionally wraps Cypher in
+  ```cypher...``` fences before sending to Neo4j. Production breaks instantly.
+  → Wrote a monkey-patch wrapper on the chain's generation step.
+
+② Turkish UTF-8 corruption:
+  pypdf rendered "Kişisel" as "Ki?isel" on Turkish-font PDFs.
+  → Switched to PyMuPDF (fitz). Eager-load all pages as raw strings
+    inside the with block, then close. Nothing leaks downstream.
+
+③ "Document Closed" 500 error:
+  PyMuPDF Page objects silently hold a reference to the parent document.
+  When the pipeline tried to access text after pdf.close(), it crashed.
+  → load_pdf_safe(): with fitz.open() as doc, str(page.get_text()),
+    del page per iteration. Only plain Python objects reach LangChain.
+
+───
+
+Stack:
+  FastAPI · Neo4j · PostgreSQL · Groq/Llama-3.3-70b · LangChain
+  HuggingFace Embeddings (local) · Next.js 15 · Docker · DigitalOcean
+
+3rd-year CS student @ Akdeniz University, Turkey.
+
+Live at contractai.website
+
+Comment "Demo" → I'll DM credentials.
+
+#GraphRAG #Neo4j #FastAPI #LegalTech #LangChain #OpenToWork #Python
+
+────────────────────────────────────────────────────────────────────────────────
+[KOPYALA-YAPISTIR SONU]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  BÖLÜM 3 — VIDEO SENARYOSU (60–75 Saniye Ekran Kaydı)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ARAÇ: OBS Studio (ücretsiz) veya macOS'ta yerleşik ekran kaydı + QuickTime
+ÇÖZÜNÜRLÜK: 1920×1080 minimum. LinkedIn'de 16:9 oran ideal.
+SES: Anlatım opsiyonel — alt yazı (caption) ekle, çoğu LinkedIn kullanıcısı
+     sessiz izliyor.
+MÜZİK: Arka plan müziği koyma. Dikkat dağıtır, kurumsal görünür.
+
+KARE KARE SENARYO:
+────────────────────────────────────────────────────────────────────────────────
+
+[00:00–00:05] AÇILIŞ KARTI (statik metin, siyah arka plan)
+  Metin: "GraphRAG Contract AI — Canlı Demo"
+  Alt metin küçük punto: "contractai.website"
+  → Editlersen Canva veya CapCut ile 5 saniyelik intro yap.
+    Editlemeyeceksen direkt siteyi aç ve kayda başla.
+
+[00:05–00:12] GİRİŞ — ANA SAYFA
+  contractai.website aç. Login ekranını göster.
+  admin@test.com ile giriş yap.
+  → Şifreyi yazarken ekranı blur etme, bu demo hesap zaten açık bilgi.
+    Aksine şifreyi görünür bırakmak "evet bu gerçek" hissi verir.
+
+[00:12–00:22] PDF YÜKLEME
+  Dashboard'da "Yeni Sözleşme" veya upload butonuna tıkla.
+  Elinde hazır bir KVKK Aydınlatma Metni PDF'i olsun (gerçek bir şirketin
+  kamuya açık metni, örneğin herhangi bir bankanın sitesinden alınabilir).
+  Dosyayı yükle. "Analiz Et" butonuna bas.
+  → Analiz sürüyor animasyonunu göster. Bu gerçeklik hissi verir.
+    Bekleme süresi uzunsa zaman atla (jump cut).
+
+[00:22–00:42] SORU-CEVAP DEMOsU — İKİ SORU SOR
+  Chat alanına sırayla şu iki soruyu yaz:
+
+  SORU 1 (adres — bu özellikle önemli çünkü bunu çözdüğünü iddia ediyorsun):
+    "Veri sorumlusunun adresi nedir?"
+  Cevap ekranda belirsin. 3 saniye bekle.
+
+  SORU 2 (madde numarası — parantezli format):
+    "6698 sayılı Kanun'un hangi maddelerine atıf yapılıyor?"
+  Cevap ekranda belirsin. 3 saniye bekle.
+
+  → Bu iki soru "biz bunu çözdük" iddiasının canlı kanıtı.
+    Önceden test et, cevaplar dolu gelsin. Boş gelirse başka soru dene.
+
+[00:42–00:58] UYUM RAPORU
+  "Uyum Raporu" veya compliance sayfasına git.
+  Skor kartını (0-100 gauge veya sayı) göster.
+  Riskli maddeleri listeleyen bölümü göster.
+  Öneriler bölümünü göster.
+  → Fareyi üzerinde gezdirerek kamera dikkatini çek.
+    Hiçbir şey tıklamadan 3 saniye duraksama yeterli.
+
+[00:58–01:10] KAPANIŞ — URL
+  Tarayıcı adres çubuğunu zoom'la göster: contractai.website
+  Klavyede URL'yi yazma animasyonu olmasa da adres çubuğunu büyük göster.
+  Ardından siyah ekran + statik metin:
+    "contractai.website
+     Yoruma 'Demo' yaz — credentials DM ile."
+
+KAPANIŞ.
+
+POST-PRODUCTION NOTLAR:
+  • Video süresi: 65–75 saniye ideal. 90'ı geçme.
+  • Kırpma: Jump cut kullan, bekleme sürelerini kes.
+  • Caption: Otomatik altyazı için CapCut veya Descript kullan (ücretsiz plan yeterli).
+  • Thumbnail: Video 1. karesi veya Canva'da "Bu AI bir hukuk metnini saniyeler
+    içinde analiz etti" yazısıyla basit bir kapak yeterli.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  BÖLÜM 4 — REDDİT STRATEJİSİ (Pazarlama Değil, Show & Tell)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+KESİN KURAL: Reddit'te asla "projem harika" deme.
+Orada sadece teknik bir problemi ve çözümünü anlat.
+Soru sor, feedback iste. Reddit, doğrudan iş bağlantısı değil,
+teknik güvenilirlik inşa ettiğin yer.
+
+SUBREDDIT 1: r/Python
+─────────────────────
+Başlık:
+  "I switched from pypdf to PyMuPDF to fix Turkish PDF encoding issues
+   in a LangChain GraphRAG pipeline — here's what I learned"
+
+İçerik iskeleti:
+  Paragraf 1: Problem — pypdf, font embedding'li Türkçe PDF'lerde
+    non-ASCII karakterleri '?' ile değiştiriyordu. "Kişisel" → "Ki?isel".
+  Paragraf 2: PyMuPDF geçişi ve fitz.open() eager load yaklaşımı.
+    load_pdf_safe() fonksiyonunu paylaş (15-20 satır kod bloğu).
+  Paragraf 3: "Document Closed" ikinci kriz ve del page çözümü.
+  Kapanış: "Bunu yaşayan başka biri var mı? Alternatif öneriniz?"
+  Son satır: "(Full pipeline: contractai.website)"
+
+Ton: Teknik, meraklı, "ben de bilemedim, şunu yaptım" mütevazılığı.
+
+────────────────────────────────────────────────────────────────────────────────
+
+SUBREDDIT 2: r/LangChain  (veya r/LangChainAI)
+─────────────────────────
+Başlık:
+  "GraphCypherQAChain sends Cypher inside ```cypher``` fences to Neo4j —
+   here's the monkey-patch fix"
+
+İçerik iskeleti:
+  Problem: LangChain'in chain'i markdown bloğunu temizlemeden Neo4j'e
+    gönderiyor, SyntaxError alınıyor.
+  Çözüm: _SanitizingChain wrapper kodunu paylaş (tam kod bloğu).
+  Ek: "partial_variables ile contract_id enjeksiyonu — multi-tenant güvenlik"
+    konusunu da kısa ekle.
+  Soru: "Bu sorunu başka şekilde çözen var mı?"
+
+Bu post seni teknik derinlik açısından konumlandırır.
+LangChain maintainer'larının veya aktif kullanıcıların yorumunu çekebilir.
+
+────────────────────────────────────────────────────────────────────────────────
+
+SUBREDDIT 3: r/neo4j
+─────────────────────
+Başlık:
+  "Built a GraphRAG pipeline for legal contracts with Neo4j +
+   LLMGraphTransformer — sharing schema and lessons learned"
+
+İçerik iskeleti:
+  Node Labels'ı paylaş: Organization, ContractClause, LegalReference,
+    LegalBasis, Obligation, Penalty, DataCategory, Cookie vb.
+  Relationship types: HAS_CLAUSE, REFERENCES, BASED_ON, CITES vb.
+  LLMGraphTransformer'ın additional_instructions parametresi ile
+    "name property her zaman dolu olsun" kuralını nasıl uyguladığını anlat.
+  "KVKK aydınlatma metni için geleneksel Madde 1/2/3 formatı yok,
+    LegalReference node tipi eklemek zorunda kaldım" — bu özgün bir gözlem.
+  Soru: "Neo4j'de multi-tenant schema tasarımı için contract_id property mi,
+    yoksa ayrı database/namespace mı önerirsiniz?"
+
+────────────────────────────────────────────────────────────────────────────────
+
+SUBREDDIT 4: r/learnmachinelearning  veya  r/MachineLearning
+─────────────────────────────────────────────────────────────
+Başlık:
+  "Why I used GraphRAG instead of standard RAG for legal document Q&A
+   (and what I got wrong the first time)"
+
+İçerik iskeleti:
+  Standart RAG'ın zayıflığı: chunk sınırlarında bağlam kopması.
+  GraphRAG'ın avantajı: ilişki zincirini Cypher ile traverse etmek.
+  Maliyet karşılaştırması: OpenAI embedding yerine HuggingFace all-MiniLM-L6-v2,
+    Groq free tier — production maliyeti sıfır.
+  "Ne yanlış yaptım": İlk başta property filtrelemesini Cypher'a bıraktım,
+    LLM property değerine göre WHERE yazıyordu, yanlış sonuçlar alıyordu.
+    Çözüm: Tüm node'ları getir, filtreyi QA LLM'e bırak.
+  Link: contractai.website (son paragrafta, bağlam içinde, reklam gibi değil)
+
+────────────────────────────────────────────────────────────────────────────────
+
+REDDIT GENEL KURALLARI:
+  • Her post arasında en az 3 gün bırak. Aynı anda 4 subreddit'e atma.
+  • Yorumlara cevap ver — hem algoritma hem itibar açısından kritik.
+  • URL'yi içeriğin içine göm, başlığa veya call-to-action olarak koyma.
+  • Upvote için yalvarma. Reddit bunu sezer ve ters tepki verir.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  BÖLÜM 5 — YOUTUBE "DEEP DIVE" VİDEO PLANI
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+KARAR: YouTube'u LinkedIn ve Reddit'ten en az 2 hafta SONRA yap.
+Önce LinkedIn engajmanını topla, Reddit'ten feedback al.
+O feedbacki video içeriğine ekle → daha güçlü video.
+
+BAŞLIK (A/B — ikisinden birini seç):
+  A: "I Built a GraphRAG Legal AI with Neo4j, FastAPI & Groq — Full Architecture"
+  B: "GraphRAG vs RAG for Legal Documents: What I Learned Building in Production"
+
+→ A başlığı daha fazla teknik izleyici çeker (arama odaklı).
+  B başlığı daha fazla "merak ediyorum" izleyici çeker (öneri odaklı).
+  Kanalın yoksa A ile başla — SEO daha güçlü.
+
+THUMBNAIL:
+  Sol taraf: Karmaşık bir sözleşme belgesi (bulanık, ürkütücü görünsün)
+  Sağ taraf: Temiz compliance dashboard ekranı
+  Ortada büyük metin: "GraphRAG ile Hukuk AI"
+  Alt köşe: Kendi fotoğrafın (küçük, 80×80 yuvarlak)
+  Renk şeması: Koyu lacivert arka plan, beyaz metin, kırmızı vurgu
+  Araç: Canva (ücretsiz şablon "YouTube Thumbnail" → "Tech" kategorisi)
+
+5 DAKİKALIK AKI:
+────────────────────────────────────────────────────────────────────────────────
+
+[00:00–00:30] HOOK
+  "Standart RAG'ın legal metinlerde neden yetersiz kaldığını ve bunu nasıl
+   GraphRAG ile çözdüğümü göstereceğim. Canlı demo, gerçek mimari,
+   production'da karşılaştığım üç ciddi kriz."
+  → Hiçbir giriş müziği, hiçbir "subscribe edin" yok. Direkt konuya gir.
+
+[00:30–01:30] PROBLEM TANIMI
+  Beyaz tahta veya ekran paylaşımıyla:
+  → Standart RAG diyagramı: PDF → Chunk → Embed → Vector Search → LLM
+  → Neden başarısız: Bağlam kopması, chunk sınırları
+  → Gerçek örnek: "5(2)(f) bendi, Madde 10'a atıf yapıyor, ihlalinde
+    Madde 18 devreye giriyor" — bu zinciri vector search bulamaz
+  Konuş, ama maksimum 60 saniye. Teori bölümü çok uzun olursa kaybedersin.
+
+[01:30–03:00] MİMARİ
+  Mimari diyagram göster (draw.io veya Excalidraw ile hazırla):
+  PDF → PyMuPDF (fitz) → LangChain TextSplitter → Chunks →
+  LLMGraphTransformer (Groq/Llama) → GraphDocument →
+  Neo4j (Node Labels, Relationships) → Contract düğümü
+  Soru geldiğinde:
+  User → FastAPI → Cypher Generation (LLM) → Neo4j Query → QA LLM → Cevap
+
+  Her bileşeni max 15 saniyede açıkla. Derinliğe gitme.
+  "Bu pipeline'ın her adımı asyncio.to_thread() ile thread pool'da çalışıyor
+   çünkü LangChain'in Neo4j entegrasyonu hala senkron — bu önemli bir detay."
+
+[03:00–04:00] 3 KRİZ VE ÇÖZÜM
+  Bu bölüm en çekici bölüm — izleyicinin "bu adam gerçekten yaşadı" dediği yer.
+  Hızlı geç, her biri için 20 saniye:
+  1. Cypher markdown fence sorunu → monkey-patch
+  2. pypdf Türkçe encoding → PyMuPDF + eager load
+  3. Document Closed → load_pdf_safe(), with bloğu, del page
+
+[04:00–04:45] CANLI DEMO
+  contractai.website'i aç, login yap, PDF yükle, soru sor, compliance raporu göster.
+  Canlı demo önceden çalışır mı test et. İnternete bağımlı — yedek ekran kaydı hazırla.
+
+[04:45–05:00] KAPANIŞ
+  "Kaynak koda ve canlı adrese video açıklamasında ulaşabilirsiniz.
+   Soru sorun, deneyimlerimi paylaşmaya devam edeceğim."
+  → Subscribe, like istemek opsiyonel. Ama sormak zorunda değilsin.
+
+AÇIKLAMA ŞABLONU (YouTube):
+  GraphRAG Contract AI — Production LegalTech Demo
+
+  Neo4j + FastAPI + Groq (Llama-3.3-70b) + LangChain ile
+  sözleşme ve KVKK aydınlatma metni analizi için GraphRAG pipeline.
+
+  Canlı site: contractai.website
+
+  ─── Zaman Damgaları ───
+  00:00 Neden standart RAG hukuki metinlerde yetersiz?
+  01:30 Mimari: PyMuPDF → LLMGraphTransformer → Neo4j
+  03:00 3 production krizi ve çözümleri
+  04:00 Canlı demo
+  04:45 Kaynaklar
+
+  GitHub: [link]
+
+  #GraphRAG #Neo4j #FastAPI #LangChain #LegalTech #Python
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  BÖLÜM 6 — EMREDİCİ ZAMAN ÇİZELGESİ (7 + 14 Gün)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+BUNU YAP. ALTERNATIF DÜŞÜNME. SIRALAMA ÖNEMLİ.
+
+═══════════════════════════════════════════════════════════════
+GÜN 0 (bugün veya yarın) — HAZIRLIK
+═══════════════════════════════════════════════════════════════
+
+□ Demo için test PDF hazırla.
+  → Herhangi bir bankanın veya şirketin kamuya açık KVKK metni PDF'i.
+  → contractai.website üzerinde yükle, "Veri sorumlusunun adresi nedir?"
+    ve "6698 sayılı Kanun'un hangi maddelerine atıf yapılıyor?" sorularını
+    sor. Cevaplar dolu ve doğru geliyorsa video çekmeye hazırsın.
+  → Cevap boş geliyorsa: sözleşmeyi yeniden analiz et (re-upload).
+
+□ LinkedIn profilini kontrol et.
+  → Profil fotoğrafı güncel mi?
+  → "About" kısmı: "Akdeniz Üniversitesi CSE 3. sınıf öğrencisi.
+    Python / FastAPI / Neo4j / LangChain. Production LegalTech projesi
+    geliştirdim. Staj/Junior pozisyonları için açığım."
+  → Bu cümleleri tam bu şekilde yaz, süsleme.
+
+□ 60-75 saniyelik ekran kaydını çek.
+  → Yukarıdaki senaryo sıralamasını takip et.
+  → En az 2 take çek. İkincisi genellikle daha iyidir.
+  → Ses kaydetmeyeceksen: CapCut'ta otomatik altyazı ekle
+    (ücretsiz, mobil veya masaüstü çalışır).
+
+═══════════════════════════════════════════════════════════════
+GÜN 1 (Salı veya Çarşamba) — LİNKEDİN TÜRKÇE POST
+═══════════════════════════════════════════════════════════════
+
+Saat: 09:00–11:00 veya 17:00–19:00 arası paylaş.
+(LinkedIn Türkiye için peak engagement bu saatlerde.)
+
+□ Bölüm 1'deki Türkçe postu kopyala-yapıştır.
+□ Videoyu ekle (native upload — YouTube linki değil, direkt video dosyası).
+  LinkedIn native video organik erişimde %3–5 daha fazla gösterim alır.
+□ Post yayınlandıktan sonra ilk 1 saatte gelen yorumlara cevap ver.
+  Bu, LinkedIn algoritmasına "aktif post" sinyali gönderir.
+□ "Demo" yazan herkese aynı gün DM at (yukarıdaki protokol şablonunu kullan).
+
+YAPMA:
+  × Grupta paylaşma (kendi feed'inden at).
+  × "Ne düşünüyorsunuz?" ile bitirme — CTA zaten "Demo" yorumu.
+  × İlk 24 saat içinde düzenleme yapma (engagement sıfırlanır).
+
+═══════════════════════════════════════════════════════════════
+GÜN 3 (Cuma) — REDDİT İLK POST
+═══════════════════════════════════════════════════════════════
+
+□ r/Python'a "PyMuPDF + eager load" postunu at.
+  → Bölüm 4'teki içerik iskeletini kullan.
+  → load_pdf_safe() fonksiyon kodunu tam ekle.
+□ Yorumlara 24 saat boyunca aktif cevap ver.
+
+═══════════════════════════════════════════════════════════════
+GÜN 5 (Pazar) — LİNKEDİN İNGİLİZCE POST
+═══════════════════════════════════════════════════════════════
+
+Saat: 10:00–12:00 (pazar öğleden önce engajman iyi).
+
+□ Bölüm 2'deki İngilizce postu paylaş.
+  Aynı videoyu tekrar ekle (LinkedIn aynı videoyu farklı hedef kitleye gösterir).
+□ Bu sefer hedef: uluslararası bağlantılar ve İK'lar.
+
+═══════════════════════════════════════════════════════════════
+GÜN 7 (Salı) — REDDİT İKİNCİ POST
+═══════════════════════════════════════════════════════════════
+
+□ r/LangChain'e "Cypher markdown fence monkey-patch" postunu at.
+  Tam kod bloğu ekle, teknik ve özlü tut.
+
+═══════════════════════════════════════════════════════════════
+GÜN 10 (Cuma) — REDDİT ÜÇÜNCÜ POST
+═══════════════════════════════════════════════════════════════
+
+□ r/neo4j'e "schema + LLMGraphTransformer" postunu at.
+  GraphRAG node schema'nı tablo veya kod bloğu olarak paylaş.
+
+═══════════════════════════════════════════════════════════════
+GÜN 14 (Salı sonrası hafta) — YOUTUBE VIDEO
+═══════════════════════════════════════════════════════════════
+
+□ YouTube kanalı yoksa aç. Kanal adı: "Levent Can Ceylan" veya
+  "GraphRAG Dev" — gerçek adını kullanmak iş başvurularında avantaj.
+□ Bölüm 5'teki 5 dakikalık video akışını çek.
+□ Açıklamayı şablondan doldur, zaman damgalarını ekle.
+□ LinkedIn'de kısa bir "YouTube videosu çıktı" notu paylaş
+  (video linki ile, uzun post değil — 3 cümle yeterli).
+
+═══════════════════════════════════════════════════════════════
+GÜN 18 (opsiyonel) — FOLLOW-UP LİNKEDİN POSTU
+═══════════════════════════════════════════════════════════════
+
+□ İlk LinkedIn postunun metric'lerini paylaş:
+  "X görüntülenme, Y 'Demo' yorumu, Z benzersiz kullanıcı test etti."
+  Bu bir "sosyal kanıt" postu — varsa ekle.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  BÖLÜM 7 — YAPMA LİSTESİ (Bunları Asla Yapma)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+× "AI ile geleceği inşa ediyorum" veya "disrupting the industry" yazma.
+  → Her öğrenci bunu yazıyor. Sen production kriplerinle konuş.
+
+× "Çok çalıştım, yoruldum ama değdi" duygusal anlatı yapma.
+  → IK'lar ve Tech Lead'ler bunu saatte 50 kez görüyor.
+
+× Post başına emoji ordusu koyma. Maksimum 2-3 kullan.
+  → Aşırı emoji, "içerik boş" sinyali verir.
+
+× Aynı içeriği aynı gün 4 platformda paylaşma.
+  → Her platform için ayrı ton var. Yukarıdaki sıralama bunun için.
+
+× Yorumlara "Teşekkürler!" ile yanıt verme.
+  → Her yorum bir teknik konuşma fırsatı. "Aynen, bu konuda şunu yaşadım..." ile başla.
+
+× GitHub'ı linksiz bırakma. README'yi yaz, repoya bağla.
+
+× Postları toplu atmak için "Hepsini bugün yapayım" deme.
+  → Algoritma düzenli aralıklı içeriği sever. Sırala ve uygula.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  BÖLÜM 8 — DİREKT HEDEFLEME (Opsiyonel ama Etkili)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+LinkedIn'de şu profillere bağlantı isteği gönder (posttan SONRA, bağlantı
+kurulduktan 2-3 gün sonra mesaj at):
+
+Hedef şirket tipleri:
+  — Türkiye'deki LegalTech startup'ları (Doctrino, LegalMation vb.)
+  — KVK Kurul danışmanlığı yapan hukuk teknoloji firmaları
+  — RegTech alanında çalışan fintech şirketleri (Papara, Iyzico, Colendi)
+  — Neo4j, LangChain, FastAPI ile çalışan her şirket
+
+Mesaj şablonu (bağlantı isteği notuna ekle — 300 karakter max):
+  ───
+  Merhaba [İSİM], Neo4j ve LangChain ile GraphRAG tabanlı bir LegalTech
+  projesi geliştiriyorum (contractai.website). [Şirket adı]'nın bu alanda
+  çalıştığını gördüm — bağlantı kurmak istedim.
+  ───
+
+DM mesajı (bağlantı kabul edildikten 3 gün sonra):
+  ───
+  Merhaba [İSİM], bağlantı için teşekkürler.
+
+  Geçen hafta GraphRAG Contract AI projesini canlıya aldım — KVKK
+  aydınlatma metinlerini Neo4j bilgi grafiğine dönüştürüp doğal dil
+  soru-cevap yapabilen bir sistem.
+
+  [Şirket adı]'nda bu tür teknolojilerle çalışılıyor mu bilmiyorum,
+  ama staj veya junior pozisyon açığınız olursa değerlendirmek ister misiniz?
+  ───
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  SON NOT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Sahada ve pazarlamada 0 tecrübe olduğunu söyledin.
+Ama elinde şu an çoğu mid-level mühendisde bulunmayan bir şey var:
+
+  Production'da çalışan, gerçek krizleri aşmış, canlı URL'si olan bir proje.
+
+Bu içeriğin geri kalanı sadece bunu doğru çerçevelemek.
+Stratejiyi uygulamak, teknik beceri kadar emek ister — ama bu emek aynı değeri döndürür.
+
+Başarılar.
+
+════════════════════════════════════════════════════════════════════════════════

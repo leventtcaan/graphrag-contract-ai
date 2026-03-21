@@ -5,22 +5,24 @@ Bu modül iki görevi üstleniyor:
   1. LangChain'in Neo4jGraph nesnesini başlatmak — GraphRAG sorgu zincirlerinin bağlandığı nokta
   2. Grafik şemasını (node labels, relationship types) tek bir yerde tanımlamak
 
-Neo4jGraph ile resmi neo4j driver (neo4j_db.py) arasındaki fark:
-  - neo4j_db.py: Düşük seviye async driver — CRUD, custom Cypher sorguları
-  - Neo4jGraph (LangChain): Yüksek seviye sarmalayıcı — LLMGraphTransformer çıktısını
-    alıp grafiğe yazmak, GraphCypherQAChain ile doğal dil sorgusu çalıştırmak
+Neo4jGraph (LangChain) tek bağlantı kaynağı olarak kullanılıyor:
+  - LLMGraphTransformer çıktısını grafiğe yazmak
+  - GraphCypherQAChain ile doğal dil sorgusu çalıştırmak
 
-İkisini birlikte kullanıyorum; çakışmıyorlar.
+Lifecycle main.py lifespan'ı tarafından yönetiliyor (init_neo4j_graph / close_neo4j_graph).
 """
 
 import logging
-from functools import lru_cache
 
 from langchain_neo4j import Neo4jGraph
 
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+# Lifespan tarafından yönetilen singleton — lru_cache değil.
+# init_neo4j_graph() / close_neo4j_graph() yalnızca main.py lifespan'ından çağrılır.
+_graph: Neo4jGraph | None = None
 
 # ─── Grafik Şema Sabitleri ────────────────────────────────────────────────────
 # Bu etiketleri ve ilişki tiplerini tek bir yerde tanımladım ki
@@ -75,36 +77,40 @@ ALLOWED_RELATIONSHIPS = [
 ]
 
 
-@lru_cache(maxsize=1)
-def get_neo4j_graph() -> Neo4jGraph:
+def init_neo4j_graph() -> None:
     """
-    LangChain Neo4jGraph instance'ını döndürüyorum.
+    LangChain Neo4jGraph'ı başlatıyor. Yalnızca main.py lifespan startup'ında çağrılır.
 
-    Bu nesne senkron çalışıyor — LangChain'in Neo4j entegrasyonu şu an
-    fully async değil. graph_builder.py içinde asyncio.to_thread() ile
-    thread pool'a alarak event loop'u bloklamıyorum.
-
-    lru_cache ile singleton yapıyorum: her sorgu için yeniden bağlantı açmak istemiyorum.
+    Neo4jGraph senkron bir sürücü kullanıyor (langchain_neo4j 0.5.0'da AsyncNeo4jGraph
+    mevcut değil). Servisler bu nesneyi asyncio.to_thread() içinde çağırıyor.
     """
+    global _graph
     logger.info("LangChain Neo4jGraph baslatiliyor: %s", settings.NEO4J_URI)
-    graph = Neo4jGraph(
+    _graph = Neo4jGraph(
         url=settings.NEO4J_URI,
         username=settings.NEO4J_USER,
         password=settings.NEO4J_PASSWORD,
-        # refresh_schema=False: başlangıçta yükleme, _save_to_neo4j ve _build_chain
-        # içinde graph.refresh_schema() ile manuel yeniliyoruz.
         refresh_schema=False,
     )
-    return graph
+
+
+def close_neo4j_graph() -> None:
+    """Lifespan shutdown'da çağrılır. İç bağlantı havuzunu temizler."""
+    global _graph
+    if _graph is not None:
+        # langchain_neo4j Neo4jGraph, _driver üzerinden resmi sürücüyü tutar.
+        if hasattr(_graph, "_driver"):
+            _graph._driver.close()
+        _graph = None
+        logger.info("Neo4jGraph kapatildi.")
+
+
+def get_neo4j_graph() -> Neo4jGraph:
+    if _graph is None:
+        raise RuntimeError("Neo4jGraph baslatilmamis. Lifespan'i kontrol et.")
+    return _graph
 
 
 def get_neo4j_graph_safe() -> Neo4jGraph | None:
-    """
-    Neo4j bağlantısı olmadığında None döndüren güvenli versiyon.
-    graph_builder.py'de Docker olmadan test ederken None kontrolü yapabiliyorum.
-    """
-    try:
-        return get_neo4j_graph()
-    except Exception as e:
-        logger.warning("Neo4jGraph baslatma hatasi: %s", e)
-        return None
+    """Bağlantı yoksa None döndürür; servisler bunu None kontrolüyle kullanır."""
+    return _graph

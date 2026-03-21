@@ -17,7 +17,7 @@ import app.models  # noqa: F401 — tüm ORM modelleri kayıtlı olmalı (relati
 from app.api.v1.api import api_router
 from app.core.config import settings
 from app.core.database import check_postgres_connection, close_postgres_connection
-from app.core.neo4j_db import neo4j_db
+from app.core.graph_schema import init_neo4j_graph, close_neo4j_graph
 from app.services.document import ensure_upload_dir
 
 # Uygulama genelinde logging yapılandırmasını burada kuruyorum.
@@ -52,15 +52,13 @@ async def lifespan(app: FastAPI):
             "Konteynerların calısıp calısmadıgını kontrol et: docker compose ps"
         )
 
-    # Neo4j driver'ını başlatıyor ve bağlantıyı doğruluyorum
+    # LangChain Neo4jGraph'ı başlatıyorum — tek bağlantı havuzu, lifespan'ın sahibi.
     neo4j_ok = False
     try:
-        await neo4j_db.connect()
-        neo4j_ok = await neo4j_db.check_connection()
-        if not neo4j_ok:
-            logger.warning("Neo4j baglantisi dogrulanamadi.")
+        init_neo4j_graph()
+        neo4j_ok = True
     except Exception as e:
-        logger.warning("Neo4j baslatma hatasi (%s): %s — Devam ediliyor.", type(e).__name__, e)
+        logger.warning("Neo4jGraph baslatma hatasi (%s): %s — Devam ediliyor.", type(e).__name__, e)
 
     logger.info(
         "Baslatma tamamlandi. PostgreSQL: %s | Neo4j: %s",
@@ -73,10 +71,7 @@ async def lifespan(app: FastAPI):
     # ── SHUTDOWN ─────────────────────────────────────────────────────────────
     logger.info("IT Law Analyzer kapatiliyor...")
 
-    # Neo4j driver'ını önce kapatıyorum — açık session'lar varsa bekleniyor
-    await neo4j_db.close()
-
-    # PostgreSQL bağlantı havuzunu temizliyorum
+    close_neo4j_graph()
     await close_postgres_connection()
 
     logger.info("Tum baglantılar temizlendi. Güle güle.")
